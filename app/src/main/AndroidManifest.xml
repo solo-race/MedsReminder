@@ -8,7 +8,7 @@
         android:name=".MedicationReminderApplication"
         android:allowBackup="false"
         android:icon="@drawable/ic_medication"
-        android:label="Medication Reminder"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.MedicationReminder">
         <activity
