@@ -47,6 +47,34 @@ From the repository root, use the Gradle wrapper when its distribution is availa
 .\gradlew.bat testDebugUnitTest assembleDebug lintDebug
 ```
 
+### Project verification backbone (Windows)
+
+The verified routine command-line path for this workstation uses the Android
+Studio bundled JDK and the installed Gradle 9.5 distribution. The managed
+shell may not expose `JAVA_HOME` or `GRADLE_USER_HOME`; when those variables
+are empty, the wrapper can incorrectly try to create its lock file under
+`C:\.gradle`. Do not repeatedly retry that failing path. Use this bootstrap
+from the repository root instead:
+
+```powershell
+$taskJavaHome = 'D:\AndroidStudio\jbr'
+$env:JAVA_HOME = $taskJavaHome
+$taskGradleHome = 'C:\Users\tiany\.gradle'
+$env:GRADLE_USER_HOME = $taskGradleHome
+$gradleCommand = 'C:\Users\tiany\AppData\Local\Temp\CodexAndroidBuild\gradle\gradle-9.5.0\bin\gradle.bat'
+& $gradleCommand testDebugUnitTest assembleDebug lintDebug --no-daemon --offline --console=plain
+```
+
+This command has passed the unit tests, debug APK assembly, and Android lint.
+`--offline` is appropriate when the project dependencies are already cached;
+omit it only when intentionally resolving a newly required dependency. If the
+temporary Gradle distribution is unavailable, use the wrapper after setting
+the same Java and Gradle cache variables, or install/configure a normal
+Gradle 9.5 distribution before building. Routine verification for this
+project is user-approved to use the local Android/Gradle caches outside the
+workspace; do not ask for separate approval on every normal verification run,
+but retain the command's explicit cache paths and task list.
+
 For a connected device, verify ADB and install the debug APK with:
 
 ```powershell
