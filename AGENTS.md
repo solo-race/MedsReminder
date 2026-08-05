@@ -6,7 +6,18 @@
 - The implementation includes Room persistence, private photo storage, medication schedules, device/manual time-zone modes, exact-alarm fallback scheduling, notification actions, reboot/time-change receivers, and dark Material 3 screens for home, editing, history, and settings.
 - Tooling used successfully in the current environment: Android Studio `D:\AndroidStudio`, its bundled JDK, Android SDK Platform `37.0`, Gradle `9.5.0`, AGP `9.3.0`, Kotlin `2.3.10`, and KSP `2.3.11`. The app uses `compileSdk 37`, `targetSdk 35`, and `minSdk 26`.
 - `local.properties` is intentionally ignored because it contains the machine-specific SDK path. Generated `.gradle/`, `.kotlin/`, `build/`, and `app/build/` outputs are also ignored.
-- Baseline commit: `454e147` (`20260804_medstime_v0.001`).
+- Baseline commit: `8889b9a` (`20260804_medstime_v0.001`).
+
+## Planned feature branches
+
+Each requested improvement has its own branch so implementation and verification can proceed independently in later conversations. All four branches start from the current baseline; no feature implementation has started yet.
+
+- `codex/feature-per-slot-dosage`: add an opt-in per-time-slot dosage mode. Preserve the current fixed dosage as the default, persist an amount for each enabled `DoseTime`, expose the editor controls, and carry the selected amount through home, notifications, and dose history.
+- `codex/feature-lockscreen-notification`: make reminder notifications visible on the lock screen while using generic redacted content so the medication name is never exposed. Verify channel visibility, notification redaction, and action behavior on a physical device.
+- `codex/feature-persistent-notification`: make an active reminder non-dismissible by swipe and clear it only after `Taken` or `Skipped`. Preserve rescheduling and dose-event recording for both actions, including process/reboot recovery.
+- `codex/feature-chinese-language`: add an English/Chinese interface option in Settings, persist the selection locally, add localized string resources, and verify the main screens, settings, notifications, and permission text in both languages.
+
+Keep each feature branch focused on its named behavior. Add or update the related Room, scheduling, notification, and Compose tests on that branch before merging it.
 
 ## Verified in the current session
 
