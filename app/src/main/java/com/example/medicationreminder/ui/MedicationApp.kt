@@ -9,8 +9,9 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.TimePickerDialog
 import android.content.Context
-import android.content.res.Configuration
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -121,7 +122,14 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
 private fun Context.withAppLanguage(language: AppLanguage): Context {
     val configuration = Configuration(resources.configuration)
     configuration.setLocale(Locale.forLanguageTag(language.languageTag))
-    return createConfigurationContext(configuration)
+    // createConfigurationContext drops the Activity from the context chain, which breaks
+    // owner lookups that resolve through LocalContext (e.g. LocalActivityResultRegistryOwner
+    // used by rememberLauncherForActivityResult). Keep the original context in the chain.
+    return LocalizedContext(createConfigurationContext(configuration), this)
+}
+
+private class LocalizedContext(localized: Context, private val owner: Context) : ContextWrapper(localized) {
+    override fun getBaseContext(): Context = owner
 }
 
 @Composable
