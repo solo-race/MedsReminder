@@ -27,7 +27,9 @@ class AppContainer(context: Context) {
         context,
         MedicationDatabase::class.java,
         "medication-reminder.db",
-    ).build()
+    )
+        .addMigrations(MedicationDatabase.MIGRATION_1_2)
+        .build()
 
     val repository: MedicationRepository = RoomMedicationRepository(database)
     val imageStore = MedicationImageStore(context)

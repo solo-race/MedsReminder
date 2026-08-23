@@ -15,6 +15,7 @@
     <string name="history_empty">过去 30 天的已服用和已跳过记录会显示在这里。</string>
     <string name="status_taken">已服用</string>
     <string name="status_skipped">已跳过</string>
+    <string name="notification_generic_title">用药提醒</string>
     <string name="notifications">通知</string>
     <string name="notifications_allowed">已允许 — 可以显示用药提醒。</string>
     <string name="notifications_required">需要此权限才能显示用药提醒。</string>
@@ -31,6 +32,8 @@
     <string name="back">返回</string>
     <string name="save">保存</string>
     <string name="medication_name">药物名称</string>
+    <string name="alias_label">通知别名（可选）</string>
+    <string name="alias_hint">提醒中将显示别名而非药物名称</string>
     <string name="amount_dosage">用量/剂量</string>
     <string name="dosage_placeholder">例如：1片或5毫升</string>
     <string name="note_optional">备注（可选）</string>

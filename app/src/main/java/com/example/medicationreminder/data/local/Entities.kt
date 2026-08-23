@@ -13,6 +13,7 @@ data class MedicationEntity(
     val name: String,
     val dosageText: String,
     val note: String,
+    val alias: String? = null,
     val photoPath: String?,
     val enabled: Boolean,
     val createdAtEpochMillis: Long,

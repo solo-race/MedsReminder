@@ -8,7 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class ReminderReceiver : BroadcastReceiver() {
+class ReminderDismissReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
         val doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1)
@@ -18,19 +18,17 @@ class ReminderReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                val currentDose = container.repository.activeScheduledDoses()
+                if (container.repository.hasDoseDecision(doseTimeId, scheduledFor)) return@launch
+                val dose = container.repository.activeScheduledDoses()
                     .firstOrNull { it.medicationId == medicationId && it.doseTimeId == doseTimeId }
-                if (currentDose != null) {
-                    container.notifications.showReminder(
-                        medicationId = medicationId,
-                        doseTimeId = doseTimeId,
-                        scheduledFor = scheduledFor,
-                        alias = currentDose.medicationAlias,
-                        dosage = currentDose.dosageText,
-                    )
-                    // One alarm per dose is kept in the system. Schedule tomorrow/next weekday after firing.
-                    container.scheduler.schedule(currentDose)
-                }
+                    ?: return@launch
+                container.notifications.showReminder(
+                    medicationId = medicationId,
+                    doseTimeId = doseTimeId,
+                    scheduledFor = scheduledFor,
+                    alias = dose.medicationAlias,
+                    dosage = dose.dosageText,
+                )
             } finally {
                 pendingResult.finish()
             }
@@ -38,10 +36,9 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACTION_REMIND = "com.example.medicationreminder.REMIND"
+        const val ACTION_DISMISSED = "com.example.medicationreminder.NOTIFICATION_DISMISSED"
         const val EXTRA_MEDICATION_ID = "medication_id"
         const val EXTRA_DOSE_TIME_ID = "dose_time_id"
         const val EXTRA_SCHEDULED_FOR = "scheduled_for"
     }
 }
-

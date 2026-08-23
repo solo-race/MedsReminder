@@ -68,4 +68,53 @@ class NextDoseCalculatorTest {
 
         assertNull(result)
     }
+
+    @Test
+    fun `returns no overdue occurrence when today's selected dose is still upcoming`() {
+        val result = NextDoseCalculator.mostRecentOverdueOccurrence(
+            time = LocalTime.of(14, 30),
+            weekdays = setOf(DayOfWeek.MONDAY),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            now = Instant.parse("2025-01-06T04:00:00Z"),
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `includes an overdue occurrence at the exact boundary`() {
+        val result = NextDoseCalculator.mostRecentOverdueOccurrence(
+            time = LocalTime.of(14, 30),
+            weekdays = setOf(DayOfWeek.MONDAY),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            now = Instant.parse("2025-01-06T06:30:00Z"),
+        )
+
+        assertEquals(Instant.parse("2025-01-06T06:30:00Z"), result)
+    }
+
+    @Test
+    fun `returns no overdue occurrence on a non-selected weekday`() {
+        val result = NextDoseCalculator.mostRecentOverdueOccurrence(
+            time = LocalTime.of(14, 30),
+            weekdays = setOf(DayOfWeek.TUESDAY),
+            zoneId = ZoneId.of("Asia/Shanghai"),
+            now = Instant.parse("2025-01-06T06:30:00Z"),
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `honors the manual zone when finding an overdue occurrence`() {
+        val result = NextDoseCalculator.mostRecentOverdueOccurrence(
+            time = LocalTime.of(8, 0),
+            weekdays = setOf(DayOfWeek.MONDAY),
+            zoneId = ZoneId.of("UTC"),
+            now = Instant.parse("2025-01-06T09:00:00Z"),
+        )
+
+        assertEquals(Instant.parse("2025-01-06T08:00:00Z"), result)
+    }
 }
+

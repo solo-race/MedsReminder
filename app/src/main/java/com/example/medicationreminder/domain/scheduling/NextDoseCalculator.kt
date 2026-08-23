@@ -26,6 +26,18 @@ object NextDoseCalculator {
         }
         return null
     }
+    fun mostRecentOverdueOccurrence(
+        time: LocalTime,
+        weekdays: Set<DayOfWeek>,
+        zoneId: ZoneId,
+        now: Instant,
+    ): Instant? {
+        if (weekdays.isEmpty()) return null
+        val today = now.atZone(zoneId).toLocalDate()
+        if (today.dayOfWeek !in weekdays) return null
+        val candidate = today.atTime(time).atZone(zoneId).toInstant()
+        return if (candidate.isAfter(now)) null else candidate
+    }
 
     fun nextOccurrence(dose: ScheduledDose, now: Instant = Instant.now()): Instant? =
         nextOccurrence(dose.time, dose.weekdays, dose.zoneId, now)

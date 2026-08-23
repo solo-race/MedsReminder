@@ -22,6 +22,7 @@
 
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderActionReceiver" android:exported="false" />
+        <receiver android:name=".reminders.ReminderDismissReceiver" android:exported="false" />
         <receiver android:name=".reminders.TimeZoneActionReceiver" android:exported="false" />
         <receiver
             android:name=".reminders.SystemEventReceiver"

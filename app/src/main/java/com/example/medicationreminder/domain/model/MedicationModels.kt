@@ -16,6 +16,7 @@ data class Medication(
     val note: String,
     val photoPath: String?,
     val enabled: Boolean,
+    val alias: String?,
 )
 
 data class MedicationSchedule(
@@ -50,6 +51,7 @@ data class MedicationDraft(
     val manualZoneId: String?,
     val times: List<LocalTime>,
     val existingPhotoPath: String? = null,
+    val alias: String? = null,
 )
 
 data class DoseEvent(
@@ -70,5 +72,6 @@ data class ScheduledDose(
     val time: LocalTime,
     val weekdays: Set<DayOfWeek>,
     val zoneId: ZoneId,
+    val medicationAlias: String?,
 )
 

@@ -15,6 +15,7 @@
     <string name="history_empty">Taken and skipped doses will appear here for 30 days.</string>
     <string name="status_taken">Taken</string>
     <string name="status_skipped">Skipped</string>
+    <string name="notification_generic_title">Medication reminder</string>
     <string name="notifications">Notifications</string>
     <string name="notifications_allowed">Allowed — medication reminders can be shown.</string>
     <string name="notifications_required">Required to show medication reminders.</string>
@@ -31,6 +32,8 @@
     <string name="back">Back</string>
     <string name="save">Save</string>
     <string name="medication_name">Medication name</string>
+    <string name="alias_label">Notification alias (optional)</string>
+    <string name="alias_hint">Shown in reminders instead of the name</string>
     <string name="amount_dosage">Amount / dosage</string>
     <string name="dosage_placeholder">e.g. 1 tablet or 5 mL</string>
     <string name="note_optional">Note (optional)</string>

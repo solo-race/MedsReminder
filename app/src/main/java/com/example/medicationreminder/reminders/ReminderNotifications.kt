@@ -13,7 +13,11 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.medicationreminder.MainActivity
+import com.example.medicationreminder.R
 import com.example.medicationreminder.domain.model.DoseStatus
+
+fun lockscreenTitle(alias: String?, fallback: String): String =
+    alias?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
 
 class ReminderNotifications(private val context: Context) {
     fun createChannels() {
@@ -37,8 +41,9 @@ class ReminderNotifications(private val context: Context) {
         )
     }
 
-    fun showReminder(medicationId: Long, doseTimeId: Long, scheduledFor: Long, name: String, dosage: String) {
+    fun showReminder(medicationId: Long, doseTimeId: Long, scheduledFor: Long, alias: String?, dosage: String) {
         if (!canPostNotifications()) return
+        val title = lockscreenTitle(alias, context.getString(R.string.notification_generic_title))
         val contentIntent = PendingIntent.getActivity(
             context,
             ReminderScheduler.requestCode(doseTimeId, 1),
@@ -49,16 +54,18 @@ class ReminderNotifications(private val context: Context) {
         val skippedIntent = doseActionIntent(medicationId, doseTimeId, scheduledFor, DoseStatus.SKIPPED)
         val reminder = NotificationCompat.Builder(context, REMINDER_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle("Time to take $name")
+            .setContentTitle(title)
             .setContentText(dosage)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$name — $dosage"))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$title — $dosage"))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setAutoCancel(false)
             .setContentIntent(contentIntent)
-            .addAction(0, "Taken", takenIntent)
-            .addAction(0, "Skipped", skippedIntent)
+            .setDeleteIntent(dismissedIntent(medicationId, doseTimeId, scheduledFor))
+            .addAction(0, context.getString(R.string.status_taken), takenIntent)
+            .addAction(0, context.getString(R.string.status_skipped), skippedIntent)
             .build()
         postNotification(reminderNotificationId(doseTimeId), reminder)
     }
@@ -105,6 +112,18 @@ class ReminderNotifications(private val context: Context) {
             .putExtra(ReminderActionReceiver.EXTRA_STATUS, status.name),
         PendingIntent.FLAG_UPDATE_CURRENT or ReminderScheduler.immutableFlag(),
     )
+
+    private fun dismissedIntent(medicationId: Long, doseTimeId: Long, scheduledFor: Long): PendingIntent =
+        PendingIntent.getBroadcast(
+            context,
+            ReminderScheduler.requestCode(doseTimeId, 6),
+            Intent(context, ReminderDismissReceiver::class.java)
+                .setAction("${ReminderDismissReceiver.ACTION_DISMISSED}.$doseTimeId")
+                .putExtra(ReminderDismissReceiver.EXTRA_MEDICATION_ID, medicationId)
+                .putExtra(ReminderDismissReceiver.EXTRA_DOSE_TIME_ID, doseTimeId)
+                .putExtra(ReminderDismissReceiver.EXTRA_SCHEDULED_FOR, scheduledFor),
+            PendingIntent.FLAG_UPDATE_CURRENT or ReminderScheduler.immutableFlag(),
+        )
 
     private fun timeZoneActionIntent(scheduleId: Long, action: String): PendingIntent = PendingIntent.getBroadcast(
         context,

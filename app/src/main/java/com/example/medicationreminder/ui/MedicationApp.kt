@@ -66,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -450,10 +451,11 @@ private fun SettingCard(title: String, description: String, action: String? = nu
 @Composable
 private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
-    val locale = context.resources.configuration.locales[0]
+    val locale = LocalConfiguration.current.locales[0]
     val initialTimes = plan?.times?.map { it.time } ?: listOf(LocalTime.of(8, 0), LocalTime.of(14, 0), LocalTime.of(20, 0))
     val times = remember(plan?.medication?.id) { mutableStateListOf<LocalTime>().apply { addAll(initialTimes) } }
     var name by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.name.orEmpty()) }
+    var alias by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.alias.orEmpty()) }
     var dosage by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.dosageText.orEmpty()) }
     var note by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.note.orEmpty()) }
     var enabled by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.enabled ?: true) }
@@ -500,6 +502,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                             manualZoneId = manualZone.takeIf { zoneMode == TimeZoneMode.MANUAL },
                             times = times.toList(),
                             existingPhotoPath = plan?.medication?.photoPath,
+                            alias = alias,
                         ),
                         previousPlan = plan,
                         newImageUri = selectedPhotoUri,
@@ -521,6 +524,16 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                     { name = it },
                     Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.medication_name)) },
+                    singleLine = true,
+                )
+            }
+            item {
+                OutlinedTextField(
+                    alias,
+                    { alias = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.alias_label)) },
+                    placeholder = { Text(stringResource(R.string.alias_hint)) },
                     singleLine = true,
                 )
             }
