@@ -6,17 +6,19 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 
 | Commit | Date | What |
 | --- | --- | --- |
-| `8889b9a` | 2026-08-04 | v0.001 baseline: bootstrap of the single-module app (Room, photo store, schedules, time-zone modes, exact-alarm fallback, notification actions, receivers, dark M3 screens). |
-| `40dac11` | 2026-08-05 | v0.002: usable version with basic features. |
-| `e684d3c` | 2026-08-05 | v0.003. |
-| `b594fc2` | 2026-08-23 | localization_proc_v0.001: English source + Simplified Chinese strings, DataStore `AppLanguage` preference, Settings selector; commit labeled "not verified". Reached master via the v0.005 merge. |
-| `0b63e52` | 2026-08-23 | v0.003 (feature): persistent redacted lockscreen reminders with alias — `setOngoing(true)`/`setAutoCancel(false)`, `ReminderDismissReceiver` swipe resurrection, alias-based lockscreen title. Verified. |
-| `9561fef` | 2026-08-23 | v0.004: dose decisions deduped per schedule-zone local day. |
-| `a583915` | 2026-08-23 | v0.005: merge of the lockscreen side branch (`b594fc2..9561fef`) into master. |
-| `4b1bb83` | 2026-08-23 | v0.006: fix Activity owner lookup crash in `withAppLanguage` (`LocalizedContext` keeps the Activity in the base-context chain). |
-| `32ae51b` | 2026-08-23 | v0.007: move session history/verification evidence to `docs/memory.md`, slim root `AGENTS.md` and `README.md`, ignore generated `.kotlin/`. |
-| `337b252` | 2026-08-23 | v0.008: release signing config (AGP 9 DSL, keystore.properties + env), R8 minify + resource shrink, `versionName 1.0.0-beta.1`, CI and release workflows. |
-| `243863e` | 2026-08-23 | v0.009: mark `gradlew` executable for CI. |
+| `2e6b4ec` | 2026-08-04 | v0.001 baseline: bootstrap of the single-module app (Room, photo store, schedules, time-zone modes, exact-alarm fallback, notification actions, receivers, dark M3 screens). |
+| `5c94bb2` | 2026-08-05 | v0.002: usable version with basic features. |
+| `3e59d19` | 2026-08-05 | v0.003. |
+| `284f4b0` | 2026-08-23 | localization_proc_v0.001: English source + Simplified Chinese strings, DataStore `AppLanguage` preference, Settings selector; commit labeled "not verified". Reached master via the v0.005 merge. |
+| `aaefe82` | 2026-08-23 | v0.003 (feature): persistent redacted lockscreen reminders with alias — `setOngoing(true)`/`setAutoCancel(false)`, `ReminderDismissReceiver` swipe resurrection, alias-based lockscreen title. Verified. |
+| `8a6f9c7` | 2026-08-23 | v0.004: dose decisions deduped per schedule-zone local day. |
+| `5057507` | 2026-08-23 | v0.005: merge of the lockscreen side branch (`284f4b0..8a6f9c7`) into master. |
+| `eb8229b` | 2026-08-23 | v0.006: fix Activity owner lookup crash in `withAppLanguage` (`LocalizedContext` keeps the Activity in the base-context chain). |
+| `794adc7` | 2026-08-23 | v0.007: move session history/verification evidence to `docs/memory.md`, slim root `AGENTS.md` and `README.md`, ignore generated `.kotlin/`. |
+| `58c4f66` | 2026-08-23 | v0.008: release signing config (AGP 9 DSL, keystore.properties + env), R8 minify + resource shrink, `versionName 1.0.0-beta.1`, CI and release workflows. |
+| `d52bbf8` | 2026-08-23 | v0.009: mark `gradlew` executable for CI. |
+| `238c085` | 2026-08-23 | v0.010: setup-java v5, beta release history, README commit reference. |
+| `84adb3f` | 2026-08-23 | Add MIT license (copyright `solo-race`); plain message outside the version format. |
 
 ## Beta release
 
@@ -28,7 +30,7 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 
 - 2026-08-04 session (v0.001 era): `testDebugUnitTest`, `assembleDebug`, `lintDebug` passed; 5 scheduling tests; lint 0 errors / 14 warnings; APK at `app/build/outputs/apk/debug/app-debug.apk`; Android Studio sync not confirmed (IDE first-run blocked it).
 - 2026-08-23 session (v0.005 tree): full suite green via `java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest assembleDebug lintDebug` with `JAVA_HOME=D:\AndroidStudio\jbr`: 14 unit tests, 0 failures (`NextDoseCalculatorTest` 9, `ReminderRedactionTest` 5); lint 0 errors / 16 warnings; report `app/build/reports/lint-results-debug.html`.
-- 2026-08-23 reconciliation: `codex/feature-persistent-notification` fast-forwarded `40dac11..a583915`; no code authored; conformance anchors spot-checked; device smoke blocked — OPPO not attached (adb kill/start/reconnect all empty).
+- 2026-08-23 reconciliation: `codex/feature-persistent-notification` fast-forwarded `5c94bb2..5057507`; no code authored; conformance anchors spot-checked; device smoke blocked — OPPO not attached (adb kill/start/reconnect all empty).
 
 ## Device smoke evidence (2026-08-23, PLB110 / ColorOS, feature-persistent-notification)
 
