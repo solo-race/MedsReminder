@@ -37,6 +37,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -44,6 +48,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -251,7 +256,14 @@ private fun MainScaffold(
                     NavigationBarItem(
                         selected = route == currentRoute,
                         onClick = { onNavigate(route) },
-                        icon = { Text(if (route == Routes.HOME) "●" else if (route == Routes.HISTORY) "◷" else "⚙") },
+                        icon = {
+                            when (route) {
+                                Routes.HOME -> Icon(Icons.Filled.Home, contentDescription = null)
+                                Routes.HISTORY -> Icon(Icons.Outlined.History, contentDescription = null)
+                                Routes.SETTINGS -> Icon(Icons.Filled.Settings, contentDescription = null)
+                                else -> {}
+                            }
+                        },
                         label = { Text(stringResource(labelRes)) },
                     )
                 }
