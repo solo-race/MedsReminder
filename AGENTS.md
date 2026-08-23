@@ -25,15 +25,19 @@ Each feature has its own branch; keep branches focused on their named behavior a
 
 ## Verification
 
-Canonical command-line build for this workstation. Managed shells may not expose `JAVA_HOME`/`GRADLE_USER_HOME`; with both empty, the wrapper can mis-create its lock under `C:\.gradle`, so set them explicitly:
+Canonical command-line build for this workstation. Managed shells may not expose `JAVA_HOME`/`GRADLE_USER_HOME`; with both empty, the wrapper can mis-create its lock under `C:\.gradle`, so set them explicitly. The temporary Gradle distribution (`...\Temp\CodexAndroidBuild\...`) no longer exists — invoke the wrapper through Java directly:
 
-```powershell
-$env:JAVA_HOME = 'D:\AndroidStudio\jbr'
-$env:GRADLE_USER_HOME = 'C:\Users\tiany\.gradle'
-& 'C:\Users\tiany\AppData\Local\Temp\CodexAndroidBuild\gradle\gradle-9.5.0\bin\gradle.bat' testDebugUnitTest assembleDebug lintDebug --no-daemon --offline --console=plain
+```bash
+export JAVA_HOME='D:/AndroidStudio/jbr'
+export GRADLE_USER_HOME='C:/Users/tiany/.gradle'
+java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest assembleDebug lintDebug --no-daemon --offline --console=plain
 ```
 
-`--offline` fits the cached-dependency state; omit only when resolving a new dependency. If the temporary distribution is missing, use the wrapper with the same environment variables; in managed shells that cannot exec `gradlew.bat`, run `java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest assembleDebug lintDebug`. Using the local Android/Gradle caches is user-approved; do not re-ask for normal verification runs.
+(PowerShell equivalent: `$env:JAVA_HOME = 'D:\AndroidStudio\jbr'; $env:GRADLE_USER_HOME = 'C:\Users\tiany\.gradle'` then the same `java -cp ...` line.)
+
+`--offline` fits the cached-dependency state; omit only when resolving a new dependency, then re-add it for later runs. Using the local Android/Gradle caches is user-approved; do not re-ask for normal verification runs.
+
+Known shell/tooling pitfalls (MSYS path mangling with adb, signature-mismatch installs, stale daemons, cache cleanup rules): `docs/operations.md`. Read it before running Gradle or adb in a new session.
 
 ## Device
 
@@ -45,4 +49,4 @@ adb shell monkey -p com.example.medicationreminder 1
 
 ## History
 
-Verification evidence, device setup, tooling quirks, and backlog: `docs/memory.md`.
+Verification evidence, device setup, tooling quirks, and backlog: `docs/memory.md`. Command-environment problems and fixes: `docs/operations.md`.
