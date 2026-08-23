@@ -37,6 +37,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -44,6 +48,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -76,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -114,7 +120,15 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
     val context = LocalContext.current
     val localizedContext = remember(language) { context.withAppLanguage(language) }
 
-    CompositionLocalProvider(LocalContext provides localizedContext) {
+    val localizedConfiguration = remember(language) {
+        Configuration(localizedContext.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag(language.languageTag))
+        }
+    }
+    CompositionLocalProvider(
+        LocalContext provides localizedContext,
+        LocalConfiguration provides localizedConfiguration,
+    ) {
         MedicationAppContent(viewModel, notificationMedicationId, language)
     }
 }
@@ -122,14 +136,14 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
 private fun Context.withAppLanguage(language: AppLanguage): Context {
     val configuration = Configuration(resources.configuration)
     configuration.setLocale(Locale.forLanguageTag(language.languageTag))
-    // createConfigurationContext drops the Activity from the context chain, which breaks
-    // owner lookups that resolve through LocalContext (e.g. LocalActivityResultRegistryOwner
-    // used by rememberLauncherForActivityResult). Keep the original context in the chain.
-    return LocalizedContext(createConfigurationContext(configuration), this)
-}
-
-private class LocalizedContext(localized: Context, private val owner: Context) : ContextWrapper(localized) {
-    override fun getBaseContext(): Context = owner
+    val localizedResources = createConfigurationContext(configuration).resources
+    // Wrap the Activity, not the configuration context: activity-bound calls resolve
+    // through the context chain (dialog window tokens via getSystemService(WINDOW_SERVICE),
+    // startActivity, owner lookups like LocalActivityResultRegistryOwner). Only Resources
+    // need localizing for stringResource / LocalConfiguration.
+    return object : ContextWrapper(this) {
+        override fun getResources(): android.content.res.Resources = localizedResources
+    }
 }
 
 @Composable
@@ -242,7 +256,14 @@ private fun MainScaffold(
                     NavigationBarItem(
                         selected = route == currentRoute,
                         onClick = { onNavigate(route) },
-                        icon = { Text(if (route == Routes.HOME) "●" else if (route == Routes.HISTORY) "◷" else "⚙") },
+                        icon = {
+                            when (route) {
+                                Routes.HOME -> Icon(Icons.Filled.Home, contentDescription = null)
+                                Routes.HISTORY -> Icon(Icons.Outlined.History, contentDescription = null)
+                                Routes.SETTINGS -> Icon(Icons.Filled.Settings, contentDescription = null)
+                                else -> {}
+                            }
+                        },
                         label = { Text(stringResource(labelRes)) },
                     )
                 }
@@ -282,7 +303,7 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
                 Text(stringResource(R.string.active_medication_schedule), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(ordered, key = { it.medication.id }) { plan ->
-                MedicationCard(plan, now, onEdit)
+                MedicationCard(plan, now, onEdit = onEdit)
             }
         }
     }
@@ -290,6 +311,7 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
 
 @Composable
 private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) -> Unit) {
+    val locale = LocalConfiguration.current.locales[0]
     val next = plan.times.mapNotNull { time ->
         NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
     }.minOrNull()
@@ -306,7 +328,6 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
                 if (plan.medication.note.isNotBlank()) {
                     Text(
                         plan.medication.note,
-                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -314,7 +335,7 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    next?.let { stringResource(R.string.next_dose, formatInstant(it, plan.schedule.zoneId())) }
+                    next?.let { stringResource(R.string.next_dose, formatInstant(it, plan.schedule.zoneId(), locale)) }
                         ?: stringResource(R.string.no_upcoming_dose),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -325,6 +346,7 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
 
 @Composable
 private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifier) {
+    val locale = LocalConfiguration.current.locales[0]
     if (history.isEmpty()) {
         Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -342,7 +364,7 @@ private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifie
                         Column(Modifier.weight(1f)) {
                             Text(event.medicationName, fontWeight = FontWeight.Medium)
                             Text(event.dosageText, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatInstant(event.scheduledFor, ZoneId.systemDefault()), style = MaterialTheme.typography.bodySmall)
+                            Text(formatInstant(event.scheduledFor, ZoneId.systemDefault(), locale), style = MaterialTheme.typography.bodySmall)
                         }
                         AssistChip(
                             onClick = {},
@@ -365,10 +387,22 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val alarms = context.getSystemService(AlarmManager::class.java)
-    val exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
-    val notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    val alarms = remember { context.getSystemService(AlarmManager::class.java) }
+    var notificationsAllowed by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    var exactAllowed by remember {
+        mutableStateOf(Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms())
+    }
+    LifecycleResumeEffect(Unit) {
+        notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
+        onPauseOrDispose { }
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -593,7 +627,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                                 val index = times.indexOf(time)
                                 if (index >= 0) times[index] = LocalTime.of(hour, minute)
                             }, time.hour, time.minute, false).show()
-                        }) { Text(time.format(TIME_FORMATTER), style = MaterialTheme.typography.titleMedium) }
+                        }) { Text(time.format(timeFormatter(locale)), style = MaterialTheme.typography.titleMedium) }
                         Spacer(Modifier.weight(1f))
                         if (times.size > 1) {
                             TextButton(onClick = { times.remove(time) }) { Text(stringResource(R.string.remove)) }
@@ -750,6 +784,7 @@ private fun com.example.medicationreminder.domain.model.MedicationSchedule.zoneI
     TimeZoneMode.MANUAL -> manualZoneId?.let(ZoneId::of) ?: ZoneId.systemDefault()
 }
 
-private val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
-private val DISPLAY_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d • h:mm a")
-private fun formatInstant(instant: Instant, zoneId: ZoneId): String = DISPLAY_FORMATTER.format(instant.atZone(zoneId))
+private fun timeFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", locale)
+private fun displayFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d • h:mm a", locale)
+private fun formatInstant(instant: Instant, zoneId: ZoneId, locale: Locale): String =
+    displayFormatter(locale).format(instant.atZone(zoneId))
