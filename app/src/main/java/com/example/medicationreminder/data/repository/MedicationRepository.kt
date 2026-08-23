@@ -35,6 +35,7 @@ interface MedicationRepository {
         scheduledFor: Instant,
         status: DoseStatus,
     )
+    suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean
     suspend fun setScheduleToDeviceTime(scheduleId: Long)
     suspend fun manualSchedules(): List<MedicationSchedule>
 }
@@ -94,6 +95,7 @@ class RoomMedicationRepository(
                     dosageText = draft.dosageText.trim(),
                     note = draft.note.trim(),
                     photoPath = draft.existingPhotoPath,
+                    alias = draft.alias?.trim()?.takeIf { it.isNotEmpty() },
                     enabled = draft.enabled,
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,
@@ -106,6 +108,7 @@ class RoomMedicationRepository(
                     dosageText = draft.dosageText.trim(),
                     note = draft.note.trim(),
                     photoPath = draft.existingPhotoPath,
+                    alias = draft.alias?.trim()?.takeIf { it.isNotEmpty() },
                     enabled = draft.enabled,
                     updatedAtEpochMillis = now,
                 ),
@@ -163,6 +166,7 @@ class RoomMedicationRepository(
                         medicationId = medication.id,
                         medicationName = medication.name,
                         dosageText = medication.dosageText,
+                        medicationAlias = medication.alias,
                         scheduleId = schedule.id,
                         doseTimeId = time.id,
                         time = time.toDomain().time,
@@ -193,6 +197,13 @@ class RoomMedicationRepository(
         doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
     }
 
+    override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
+        val day = scheduledFor.atZone(zoneId).toLocalDate()
+        val from = day.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val to = day.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1
+        return doseEventDao.existsForOnLocalDay(doseTimeId, from, to)
+    }
+
     override suspend fun setScheduleToDeviceTime(scheduleId: Long) {
         database.withTransaction {
             scheduleDao.getById(scheduleId)?.let {
@@ -210,7 +221,7 @@ class RoomMedicationRepository(
     }
 }
 
-private fun MedicationEntity.toDomain() = Medication(id, name, dosageText, note, photoPath, enabled)
+private fun MedicationEntity.toDomain() = Medication(id, name, dosageText, note, photoPath, enabled, alias)
 
 private fun MedicationScheduleEntity.toDomain() = MedicationSchedule(
     id = id,

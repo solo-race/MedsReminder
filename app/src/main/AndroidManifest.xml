@@ -8,7 +8,7 @@
         android:name=".MedicationReminderApplication"
         android:allowBackup="false"
         android:icon="@drawable/ic_medication"
-        android:label="Medication Reminder"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.MedicationReminder">
         <activity
@@ -22,6 +22,7 @@
 
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderActionReceiver" android:exported="false" />
+        <receiver android:name=".reminders.ReminderDismissReceiver" android:exported="false" />
         <receiver android:name=".reminders.TimeZoneActionReceiver" android:exported="false" />
         <receiver
             android:name=".reminders.SystemEventReceiver"

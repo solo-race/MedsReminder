@@ -9,6 +9,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.app.TimePickerDialog
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -54,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -64,8 +66,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -78,6 +81,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.medicationreminder.MainActivity
+import com.example.medicationreminder.R
+import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
@@ -90,6 +95,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 private object Routes {
@@ -103,15 +109,37 @@ private object Routes {
 
 @Composable
 fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long) {
+    val language by viewModel.language.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val localizedContext = remember(language) { context.withAppLanguage(language) }
+
+    CompositionLocalProvider(LocalContext provides localizedContext) {
+        MedicationAppContent(viewModel, notificationMedicationId, language)
+    }
+}
+
+private fun Context.withAppLanguage(language: AppLanguage): Context {
+    val configuration = Configuration(resources.configuration)
+    configuration.setLocale(Locale.forLanguageTag(language.languageTag))
+    return createConfigurationContext(configuration)
+}
+
+@Composable
+private fun MedicationAppContent(
+    viewModel: MedicationViewModel,
+    notificationMedicationId: Long,
+    language: AppLanguage,
+) {
     val navController = rememberNavController()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val errorMessage = error?.let { stringResource(it) }
     val snackbarHost = remember { SnackbarHostState() }
     var openedNotificationTarget by remember { mutableStateOf(false) }
 
-    LaunchedEffect(error) {
-        error?.let {
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
             snackbarHost.showSnackbar(it)
             viewModel.clearError()
         }
@@ -132,7 +160,7 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
                 floatingAction = {
                     ExtendedFloatingActionButton(
                         onClick = { navController.navigate(Routes.EDIT_NEW) },
-                    ) { Text("Add medication") }
+                    ) { Text(stringResource(R.string.add_medication)) }
                 },
             ) { padding ->
                 HomeScreen(plans, Modifier.padding(padding), onEdit = { navController.navigate(Routes.edit(it)) })
@@ -150,7 +178,13 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
                 currentRoute = Routes.SETTINGS,
                 snackbarHost = { SnackbarHost(snackbarHost) },
                 onNavigate = { navController.navigate(it) },
-            ) { padding -> SettingsScreen(Modifier.padding(padding)) }
+            ) { padding ->
+                SettingsScreen(
+                    modifier = Modifier.padding(padding),
+                    language = language,
+                    onLanguageSelected = viewModel::setLanguage,
+                )
+            }
         }
         composable(Routes.EDIT_NEW) {
             EditMedicationScreen(
@@ -184,7 +218,7 @@ private fun MainScaffold(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Medication Reminder") },
+                title = { Text(stringResource(R.string.app_name)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
@@ -192,12 +226,16 @@ private fun MainScaffold(
         },
         bottomBar = {
             NavigationBar {
-                listOf(Routes.HOME to "Today", Routes.HISTORY to "History", Routes.SETTINGS to "Settings").forEach { (route, label) ->
+                listOf(
+                    Routes.HOME to R.string.tab_today,
+                    Routes.HISTORY to R.string.tab_history,
+                    Routes.SETTINGS to R.string.tab_settings,
+                ).forEach { (route, labelRes) ->
                     NavigationBarItem(
                         selected = route == currentRoute,
                         onClick = { onNavigate(route) },
                         icon = { Text(if (route == Routes.HOME) "●" else if (route == Routes.HISTORY) "◷" else "⚙") },
-                        label = { Text(label) },
+                        label = { Text(stringResource(labelRes)) },
                     )
                 }
             }
@@ -220,9 +258,9 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
     if (plans.isEmpty()) {
         Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("No medications yet", style = MaterialTheme.typography.headlineSmall)
+                Text(stringResource(R.string.no_medications_yet), style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(8.dp))
-                Text("Add your first medication and its daily times.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.first_medication_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     } else {
@@ -232,8 +270,8 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Text("Today", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-                Text("Your active medication schedule", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.tab_today), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.active_medication_schedule), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(ordered, key = { it.medication.id }) { plan ->
                 MedicationCard(plan, now, onEdit)
@@ -268,7 +306,8 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    next?.let { "Next: ${formatInstant(it, plan.schedule.zoneId())}" } ?: "No upcoming dose",
+                    next?.let { stringResource(R.string.next_dose, formatInstant(it, plan.schedule.zoneId())) }
+                        ?: stringResource(R.string.no_upcoming_dose),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -280,7 +319,7 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
 private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifier) {
     if (history.isEmpty()) {
         Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
-            Text("Taken and skipped doses will appear here for 30 days.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
         LazyColumn(
@@ -288,7 +327,7 @@ private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifie
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            item { Text("Dose history", style = MaterialTheme.typography.headlineMedium) }
+            item { Text(stringResource(R.string.dose_history_title), style = MaterialTheme.typography.headlineMedium) }
             items(history, key = { it.id }) { event ->
                 Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -299,7 +338,9 @@ private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifie
                         }
                         AssistChip(
                             onClick = {},
-                            label = { Text(if (event.status.name == "TAKEN") "Taken" else "Skipped") },
+                            label = {
+                                Text(stringResource(if (event.status.name == "TAKEN") R.string.status_taken else R.string.status_skipped))
+                            },
                         )
                     }
                 }
@@ -309,7 +350,11 @@ private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun SettingsScreen(modifier: Modifier = Modifier) {
+private fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    language: AppLanguage,
+    onLanguageSelected: (AppLanguage) -> Unit,
+) {
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val alarms = context.getSystemService(AlarmManager::class.java)
@@ -321,20 +366,33 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { Text("Settings", style = MaterialTheme.typography.headlineMedium) }
+        item { Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineMedium) }
+        item { LanguageSetting(language, onLanguageSelected) }
         item {
             SettingCard(
-                title = "Notifications",
-                description = if (notificationsAllowed) "Allowed — medication reminders can be shown." else "Required to show medication reminders.",
-                action = if (!notificationsAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) "Allow" else null,
+                title = stringResource(R.string.notifications),
+                description = stringResource(
+                    if (notificationsAllowed) R.string.notifications_allowed else R.string.notifications_required,
+                ),
+                action = if (!notificationsAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    stringResource(R.string.allow)
+                } else {
+                    null
+                },
                 onAction = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) },
             )
         }
         item {
             SettingCard(
-                title = "Exact alarms",
-                description = if (exactAllowed) "Allowed — reminders are scheduled for their exact minute." else "Not allowed — Android may delay reminders to save battery.",
-                action = if (!exactAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "Allow" else null,
+                title = stringResource(R.string.exact_alarms),
+                description = stringResource(
+                    if (exactAllowed) R.string.exact_alarms_allowed else R.string.exact_alarms_not_allowed,
+                ),
+                action = if (!exactAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    stringResource(R.string.allow)
+                } else {
+                    null
+                },
                 onAction = {
                     context.startActivity(
                         Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(Uri.parse("package:${context.packageName}")),
@@ -344,9 +402,33 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         }
         item {
             SettingCard(
-                title = "Privacy",
-                description = "Medication details, photos, and history are stored only on this device. No account or cloud sync is used.",
+                title = stringResource(R.string.privacy),
+                description = stringResource(R.string.privacy_description),
             )
+        }
+    }
+}
+
+@Composable
+private fun LanguageSetting(language: AppLanguage, onLanguageSelected: (AppLanguage) -> Unit) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.language_title), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.language_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = language == AppLanguage.ENGLISH,
+                    onClick = { onLanguageSelected(AppLanguage.ENGLISH) },
+                    label = { Text(stringResource(R.string.language_english)) },
+                )
+                FilterChip(
+                    selected = language == AppLanguage.SIMPLIFIED_CHINESE,
+                    onClick = { onLanguageSelected(AppLanguage.SIMPLIFIED_CHINESE) },
+                    label = { Text(stringResource(R.string.language_simplified_chinese)) },
+                )
+            }
         }
     }
 }
@@ -373,6 +455,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     val initialTimes = plan?.times?.map { it.time } ?: listOf(LocalTime.of(8, 0), LocalTime.of(14, 0), LocalTime.of(20, 0))
     val times = remember(plan?.medication?.id) { mutableStateListOf<LocalTime>().apply { addAll(initialTimes) } }
     var name by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.name.orEmpty()) }
+    var alias by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.alias.orEmpty()) }
     var dosage by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.dosageText.orEmpty()) }
     var note by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.note.orEmpty()) }
     var enabled by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.enabled ?: true) }
@@ -402,8 +485,10 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (plan == null) "Add medication" else "Edit medication") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
+                title = {
+                    Text(stringResource(if (plan == null) R.string.add_medication else R.string.edit_medication))
+                },
+                navigationIcon = { TextButton(onClick = onBack) { Text(stringResource(R.string.back)) } },
                 actions = { TextButton(onClick = {
                     viewModel.saveMedication(
                         draft = MedicationDraft(
@@ -417,13 +502,14 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                             manualZoneId = manualZone.takeIf { zoneMode == TimeZoneMode.MANUAL },
                             times = times.toList(),
                             existingPhotoPath = plan?.medication?.photoPath,
+                            alias = alias,
                         ),
                         previousPlan = plan,
                         newImageUri = selectedPhotoUri,
                         removePhoto = removePhoto,
                         onSaved = onBack,
                     )
-                }) { Text("Save") } },
+                }) { Text(stringResource(R.string.save)) } },
             )
         },
     ) { padding ->
@@ -433,28 +519,64 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
-                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Medication name") }, singleLine = true)
+                OutlinedTextField(
+                    name,
+                    { name = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.medication_name)) },
+                    singleLine = true,
+                )
             }
             item {
-                OutlinedTextField(dosage, { dosage = it }, Modifier.fillMaxWidth(), label = { Text("Amount / dosage") }, placeholder = { Text("e.g. 1 tablet or 5 mL") }, singleLine = true)
+                OutlinedTextField(
+                    alias,
+                    { alias = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.alias_label)) },
+                    placeholder = { Text(stringResource(R.string.alias_hint)) },
+                    singleLine = true,
+                )
             }
             item {
-                OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Note (optional)") }, minLines = 3, maxLines = 6)
+                OutlinedTextField(
+                    dosage,
+                    { dosage = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.amount_dosage)) },
+                    placeholder = { Text(stringResource(R.string.dosage_placeholder)) },
+                    singleLine = true,
+                )
+            }
+            item {
+                OutlinedTextField(
+                    note,
+                    { note = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.note_optional)) },
+                    minLines = 3,
+                    maxLines = 6,
+                )
             }
             item {
                 val preview = selectedPhotoUri ?: plan?.medication?.photoPath?.takeIf { !removePhoto }?.let { Uri.fromFile(File(it)) }
                 Column {
-                    Text("Medication photo", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.medication_photo), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     if (preview != null) MedicationImage(preview, Modifier.fillMaxWidth().height(180.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { showSourceDialog = true }) { Text(if (preview == null) "Add photo" else "Change photo") }
-                        if (preview != null) TextButton(onClick = { selectedPhotoUri = null; removePhoto = true }) { Text("Remove") }
+                        OutlinedButton(onClick = { showSourceDialog = true }) {
+                            Text(stringResource(if (preview == null) R.string.add_photo else R.string.change_photo))
+                        }
+                        if (preview != null) {
+                            TextButton(onClick = { selectedPhotoUri = null; removePhoto = true }) {
+                                Text(stringResource(R.string.remove))
+                            }
+                        }
                     }
                 }
             }
             item {
-                Text("Daily times", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.daily_times), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 times.sorted().forEach { time ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -465,13 +587,17 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                             }, time.hour, time.minute, false).show()
                         }) { Text(time.format(TIME_FORMATTER), style = MaterialTheme.typography.titleMedium) }
                         Spacer(Modifier.weight(1f))
-                        if (times.size > 1) TextButton(onClick = { times.remove(time) }) { Text("Remove") }
+                        if (times.size > 1) {
+                            TextButton(onClick = { times.remove(time) }) { Text(stringResource(R.string.remove)) }
+                        }
                     }
                 }
-                OutlinedButton(onClick = { times.add((times.maxOrNull() ?: LocalTime.of(8, 0)).plusHours(4)) }) { Text("Add time") }
+                OutlinedButton(onClick = { times.add((times.maxOrNull() ?: LocalTime.of(8, 0)).plusHours(4)) }) {
+                    Text(stringResource(R.string.add_time))
+                }
             }
             item {
-                Text("Repeat on", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.repeat_on), style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DayOfWeek.entries.forEach { day ->
                         FilterChip(
@@ -483,22 +609,40 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                 }
             }
             item {
-                Text("Time zone", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.time_zone), style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = zoneMode == TimeZoneMode.DEVICE, onClick = { zoneMode = TimeZoneMode.DEVICE }, label = { Text("Follow device") })
+                    FilterChip(
+                        selected = zoneMode == TimeZoneMode.DEVICE,
+                        onClick = { zoneMode = TimeZoneMode.DEVICE },
+                        label = { Text(stringResource(R.string.follow_device)) },
+                    )
                     Spacer(Modifier.width(8.dp))
-                    FilterChip(selected = zoneMode == TimeZoneMode.MANUAL, onClick = { zoneMode = TimeZoneMode.MANUAL }, label = { Text("Manual") })
+                    FilterChip(
+                        selected = zoneMode == TimeZoneMode.MANUAL,
+                        onClick = { zoneMode = TimeZoneMode.MANUAL },
+                        label = { Text(stringResource(R.string.manual)) },
+                    )
                 }
                 if (zoneMode == TimeZoneMode.MANUAL) {
-                    TextButton(onClick = { showZoneDialog = true }) { Text("Selected: $manualZone") }
+                    TextButton(onClick = { showZoneDialog = true }) {
+                        Text(stringResource(R.string.selected_zone, manualZone))
+                    }
                 }
             }
             item {
-                FilterChip(selected = enabled, onClick = { enabled = !enabled }, label = { Text(if (enabled) "Reminders enabled" else "Reminders paused") })
+                FilterChip(
+                    selected = enabled,
+                    onClick = { enabled = !enabled },
+                    label = {
+                        Text(stringResource(if (enabled) R.string.reminders_enabled else R.string.reminders_paused))
+                    },
+                )
             }
             if (plan != null) item {
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = { confirmDelete = true }) { Text("Delete medication", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = { confirmDelete = true }) {
+                    Text(stringResource(R.string.delete_medication), color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
@@ -506,20 +650,20 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     if (showSourceDialog) {
         AlertDialog(
             onDismissRequest = { showSourceDialog = false },
-            title = { Text("Add medication photo") },
-            text = { Text("Photos are copied into private app storage.") },
+            title = { Text(stringResource(R.string.add_medication_photo)) },
+            text = { Text(stringResource(R.string.private_photo_storage)) },
             confirmButton = {
                 TextButton(onClick = {
                     showSourceDialog = false
                     picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }) { Text("Choose photo") }
+                }) { Text(stringResource(R.string.choose_photo)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showSourceDialog = false
                     pendingCameraUri = viewModel.newCameraCaptureUri()
                     camera.launch(pendingCameraUri!!)
-                }) { Text("Take photo") }
+                }) { Text(stringResource(R.string.take_photo)) }
             },
         )
     }
@@ -529,10 +673,16 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     if (confirmDelete && plan != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete ${plan.medication.name}?") },
-            text = { Text("Its schedule, photo, and stored history will be removed from this device.") },
-            confirmButton = { TextButton(onClick = { viewModel.deleteMedication(plan, onBack) }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+            title = { Text(stringResource(R.string.delete_medication_question, plan.medication.name)) },
+            text = { Text(stringResource(R.string.delete_medication_data)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteMedication(plan, onBack) }) {
+                    Text(stringResource(R.string.delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.cancel)) }
+            },
         )
     }
 }
@@ -544,10 +694,16 @@ private fun TimeZonePickerDialog(selectedZone: String, onSelect: (String) -> Uni
     val filtered = remember(query, zones) { zones.filter { it.contains(query, ignoreCase = true) }.take(150) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Choose time zone") },
+        title = { Text(stringResource(R.string.choose_time_zone)) },
         text = {
             Column {
-                OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search") }, singleLine = true)
+                OutlinedTextField(
+                    query,
+                    { query = it },
+                    Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.search)) },
+                    singleLine = true,
+                )
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
                     items(filtered) { zone ->
@@ -560,7 +716,7 @@ private fun TimeZonePickerDialog(selectedZone: String, onSelect: (String) -> Uni
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 

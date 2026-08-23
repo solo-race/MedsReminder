@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicationreminder.MedicationReminderApplication
+import com.example.medicationreminder.R
+import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
 import java.time.ZoneId
@@ -31,8 +33,14 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         emptyList(),
     )
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    val language = container.preferences.language.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        AppLanguage.ENGLISH,
+    )
+
+    private val _error = MutableStateFlow<Int?>(null)
+    val error: StateFlow<Int?> = _error.asStateFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -45,6 +53,10 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         _error.value = null
     }
 
+    fun setLanguage(language: AppLanguage) {
+        viewModelScope.launch { container.preferences.setLanguage(language) }
+    }
+
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()
 
     fun saveMedication(
@@ -55,7 +67,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         onSaved: () -> Unit,
     ) {
         if (draft.name.isBlank() || draft.dosageText.isBlank() || draft.times.isEmpty() || draft.weekdays.isEmpty()) {
-            _error.value = "Add a name, dosage, at least one time, and one weekday."
+            _error.value = R.string.error_missing_medication_fields
             return
         }
         viewModelScope.launch {
@@ -84,7 +96,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             }.onSuccess {
                 onSaved()
             }.onFailure {
-                _error.value = it.message ?: "Could not save this medication."
+                _error.value = R.string.error_save_medication
                 // Re-establish previous alarms if saving failed after cancelling an edited schedule.
                 viewModelScope.launch(Dispatchers.IO) { container.scheduler.scheduleAll() }
             }
@@ -104,7 +116,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                     container.scheduler.scheduleAll()
                 }
             }.onSuccess { onDeleted() }
-                .onFailure { _error.value = it.message ?: "Could not delete this medication." }
+                .onFailure { _error.value = R.string.error_delete_medication }
         }
     }
 }
