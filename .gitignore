@@ -3,6 +3,8 @@
 local.properties
 build/
 /.kotlin/
+/release.keystore
+/keystore.properties
 app/build/
 *.iml
 
