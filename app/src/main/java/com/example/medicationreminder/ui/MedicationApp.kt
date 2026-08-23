@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -122,14 +123,14 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
 private fun Context.withAppLanguage(language: AppLanguage): Context {
     val configuration = Configuration(resources.configuration)
     configuration.setLocale(Locale.forLanguageTag(language.languageTag))
-    // createConfigurationContext drops the Activity from the context chain, which breaks
-    // owner lookups that resolve through LocalContext (e.g. LocalActivityResultRegistryOwner
-    // used by rememberLauncherForActivityResult). Keep the original context in the chain.
-    return LocalizedContext(createConfigurationContext(configuration), this)
-}
-
-private class LocalizedContext(localized: Context, private val owner: Context) : ContextWrapper(localized) {
-    override fun getBaseContext(): Context = owner
+    val localizedResources = createConfigurationContext(configuration).resources
+    // Wrap the Activity, not the configuration context: activity-bound calls resolve
+    // through the context chain (dialog window tokens via getSystemService(WINDOW_SERVICE),
+    // startActivity, owner lookups like LocalActivityResultRegistryOwner). Only Resources
+    // need localizing for stringResource / LocalConfiguration.
+    return object : ContextWrapper(this) {
+        override fun getResources(): android.content.res.Resources = localizedResources
+    }
 }
 
 @Composable
@@ -365,10 +366,22 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val alarms = context.getSystemService(AlarmManager::class.java)
-    val exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
-    val notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    val alarms = remember { context.getSystemService(AlarmManager::class.java) }
+    var notificationsAllowed by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    var exactAllowed by remember {
+        mutableStateOf(Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms())
+    }
+    LifecycleResumeEffect(Unit) {
+        notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
+        onPauseOrDispose { }
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
