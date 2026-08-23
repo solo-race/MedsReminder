@@ -35,7 +35,7 @@ interface MedicationRepository {
         scheduledFor: Instant,
         status: DoseStatus,
     )
-    suspend fun hasDoseDecision(doseTimeId: Long, scheduledForEpochMillis: Long): Boolean
+    suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean
     suspend fun setScheduleToDeviceTime(scheduleId: Long)
     suspend fun manualSchedules(): List<MedicationSchedule>
 }
@@ -197,8 +197,12 @@ class RoomMedicationRepository(
         doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
     }
 
-    override suspend fun hasDoseDecision(doseTimeId: Long, scheduledForEpochMillis: Long): Boolean =
-        doseEventDao.existsFor(doseTimeId, scheduledForEpochMillis)
+    override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
+        val day = scheduledFor.atZone(zoneId).toLocalDate()
+        val from = day.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val to = day.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1
+        return doseEventDao.existsForOnLocalDay(doseTimeId, from, to)
+    }
 
     override suspend fun setScheduleToDeviceTime(scheduleId: Long) {
         database.withTransaction {

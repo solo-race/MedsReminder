@@ -3,6 +3,7 @@ package com.example.medicationreminder.reminders
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import java.time.Instant
 import com.example.medicationreminder.appContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,10 +19,10 @@ class ReminderDismissReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                if (container.repository.hasDoseDecision(doseTimeId, scheduledFor)) return@launch
                 val dose = container.repository.activeScheduledDoses()
                     .firstOrNull { it.medicationId == medicationId && it.doseTimeId == doseTimeId }
                     ?: return@launch
+                if (container.repository.hasDoseDecisionOnLocalDay(doseTimeId, Instant.ofEpochMilli(scheduledFor), dose.zoneId)) return@launch
                 container.notifications.showReminder(
                     medicationId = medicationId,
                     doseTimeId = doseTimeId,

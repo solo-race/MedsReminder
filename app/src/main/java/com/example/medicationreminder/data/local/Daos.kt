@@ -98,6 +98,11 @@ interface DoseEventDao {
     @Query("DELETE FROM dose_events WHERE medicationId = :medicationId")
     suspend fun deleteForMedication(medicationId: Long)
 
-    @Query("SELECT EXISTS(SELECT 1 FROM dose_events WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis = :scheduledForEpochMillis)")
-    suspend fun existsFor(doseTimeId: Long, scheduledForEpochMillis: Long): Boolean
+    @Query(
+        """
+        SELECT EXISTS(SELECT 1 FROM dose_events
+        WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis BETWEEN :fromInclusive AND :toInclusive)
+        """
+    )
+    suspend fun existsForOnLocalDay(doseTimeId: Long, fromInclusive: Long, toInclusive: Long): Boolean
 }

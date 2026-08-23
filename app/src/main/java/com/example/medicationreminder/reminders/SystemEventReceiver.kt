@@ -28,7 +28,7 @@ class SystemEventReceiver : BroadcastReceiver() {
                             now,
                         ) ?: return@forEach
                         val scheduledFor = occurredAt.toEpochMilli()
-                        if (!container.repository.hasDoseDecision(dose.doseTimeId, scheduledFor)) {
+                        if (!container.repository.hasDoseDecisionOnLocalDay(dose.doseTimeId, occurredAt, dose.zoneId)) {
                             container.notifications.showReminder(
                                 medicationId = dose.medicationId,
                                 doseTimeId = dose.doseTimeId,
