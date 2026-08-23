@@ -13,6 +13,16 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 | `0b63e52` | 2026-08-23 | v0.003 (feature): persistent redacted lockscreen reminders with alias — `setOngoing(true)`/`setAutoCancel(false)`, `ReminderDismissReceiver` swipe resurrection, alias-based lockscreen title. Verified. |
 | `9561fef` | 2026-08-23 | v0.004: dose decisions deduped per schedule-zone local day. |
 | `a583915` | 2026-08-23 | v0.005: merge of the lockscreen side branch (`b594fc2..9561fef`) into master. |
+| `4b1bb83` | 2026-08-23 | v0.006: fix Activity owner lookup crash in `withAppLanguage` (`LocalizedContext` keeps the Activity in the base-context chain). |
+| `32ae51b` | 2026-08-23 | v0.007: move session history/verification evidence to `docs/memory.md`, slim root `AGENTS.md` and `README.md`, ignore generated `.kotlin/`. |
+| `337b252` | 2026-08-23 | v0.008: release signing config (AGP 9 DSL, keystore.properties + env), R8 minify + resource shrink, `versionName 1.0.0-beta.1`, CI and release workflows. |
+| `243863e` | 2026-08-23 | v0.009: mark `gradlew` executable for CI. |
+
+## Beta release
+
+- First beta `v1.0.0-beta.1` published 2026-08-23 as a GitHub release with the signed, minified `app-release.apk`; built by `.github/workflows/release.yml` (tag `v*` → signed `assembleRelease` → `softprops/action-gh-release`).
+- Signing: local `release.keystore` + `keystore.properties` (both gitignored); CI gets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` repo secrets. Key alias `medsreminder`; key password equals store password (Windows keytool ignored `-keypass` — keep them equal if the keystore is regenerated).
+- Keytool/AGP quirk: AGP 9.3 new-DSL signing config must be configured via typed `ApkSigningConfig` reference (lambda receiver is the internal class where `storeFile`/`storePassword` are shadowed by methods).
 
 ## Verification evidence
 
