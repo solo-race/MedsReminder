@@ -72,9 +72,10 @@ copy is in the main Compose file.
 - Added a DataStore-backed `AppLanguage` preference with English as the
   default, a Settings language selector, localized Compose context switching,
   localized weekday names, and a resource-backed application label.
-- The first implementation commit is being amended now. Its implementation
-  has not been verified after the full localization and selector changes;
-  Gradle, lint, unit-test, and device checks remain pending.
+- Commit `b594fc2` (`localization_proc_v0.001`) is the branch tip and is also
+  in master through the v0.005 lockscreen merge. The strings and selector
+  changes have not been verified as a feature; Gradle, lint, unit-test, and
+  device checks remain pending.
 - Reminder notification/channel/travel copy still needs localization, followed
   by the tests and device verification described below.
 
