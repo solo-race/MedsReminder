@@ -20,11 +20,16 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 | `238c085` | 2026-08-23 | v0.010: setup-java v5, beta release history, README commit reference. |
 | `84adb3f` | 2026-08-23 | Add MIT license (copyright `solo-race`); plain message outside the version format. |
 
+| `cf7ae74` | 2026-08-24 | v0.011: fix localized-context crashes (time picker `BadTokenException`, exact-alarm `startActivity` exception) via resources-only ContextWrapper; refresh notifications/exact-alarm states on resume (`LifecycleResumeEffect`). Verified on device, debug + release. |
+| `a84bce0` | 2026-08-24 | v0.012: align time/weekday formatting with app language — provide localized `LocalConfiguration`, per-call locale-aware formatters replace static `DateTimeFormatter`s. Verified EN/ZH on device. |
+| `88afc03` | 2026-08-24 | v0.013: consistent Material icons in bottom navigation (`material-icons-extended`, BOM-pinned) replacing text glyphs that rendered at unequal sizes; all three icons now standard 24dp. User-confirmed on device. |
+| `67c5e7f` | 2026-08-24 | v0.014: merge `codex/fix-localized-context-crashes` into master. |
+
 ## Beta release
 
 - First beta `v1.0.0-beta.1` published 2026-08-23 as a GitHub release with the signed, minified `app-release.apk`; built by `.github/workflows/release.yml` (tag `v*` → signed `assembleRelease` → `softprops/action-gh-release`).
 - Signing: local `release.keystore` + `keystore.properties` (both gitignored); CI gets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` repo secrets. Key alias `medsreminder`; key password equals store password (Windows keytool ignored `-keypass` — keep them equal if the keystore is regenerated).
-- Keytool/AGP quirk: AGP 9.3 new-DSL signing config must be configured via typed `ApkSigningConfig` reference (lambda receiver is the internal class where `storeFile`/`storePassword` are shadowed by methods).
+- Second beta `v1.0.0-beta.2` published 2026-08-24 from tag on master `67c5e7f`; same workflow and signing path as beta.1. Contains v0.011–v0.014. CI run `32655679291`; CI-built APK installed and smoke-tested on device (Settings screen renders, nav icons equal size, 0 crashes).
 
 ## Verification evidence
 
