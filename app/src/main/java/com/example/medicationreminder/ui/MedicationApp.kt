@@ -115,7 +115,15 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
     val context = LocalContext.current
     val localizedContext = remember(language) { context.withAppLanguage(language) }
 
-    CompositionLocalProvider(LocalContext provides localizedContext) {
+    val localizedConfiguration = remember(language) {
+        Configuration(localizedContext.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag(language.languageTag))
+        }
+    }
+    CompositionLocalProvider(
+        LocalContext provides localizedContext,
+        LocalConfiguration provides localizedConfiguration,
+    ) {
         MedicationAppContent(viewModel, notificationMedicationId, language)
     }
 }
@@ -283,7 +291,7 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
                 Text(stringResource(R.string.active_medication_schedule), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(ordered, key = { it.medication.id }) { plan ->
-                MedicationCard(plan, now, onEdit)
+                MedicationCard(plan, now, onEdit = onEdit)
             }
         }
     }
@@ -291,6 +299,7 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
 
 @Composable
 private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) -> Unit) {
+    val locale = LocalConfiguration.current.locales[0]
     val next = plan.times.mapNotNull { time ->
         NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
     }.minOrNull()
@@ -307,7 +316,6 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
                 if (plan.medication.note.isNotBlank()) {
                     Text(
                         plan.medication.note,
-                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -315,7 +323,7 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    next?.let { stringResource(R.string.next_dose, formatInstant(it, plan.schedule.zoneId())) }
+                    next?.let { stringResource(R.string.next_dose, formatInstant(it, plan.schedule.zoneId(), locale)) }
                         ?: stringResource(R.string.no_upcoming_dose),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -326,6 +334,7 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) ->
 
 @Composable
 private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifier) {
+    val locale = LocalConfiguration.current.locales[0]
     if (history.isEmpty()) {
         Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
             Text(stringResource(R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -343,7 +352,7 @@ private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifie
                         Column(Modifier.weight(1f)) {
                             Text(event.medicationName, fontWeight = FontWeight.Medium)
                             Text(event.dosageText, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatInstant(event.scheduledFor, ZoneId.systemDefault()), style = MaterialTheme.typography.bodySmall)
+                            Text(formatInstant(event.scheduledFor, ZoneId.systemDefault(), locale), style = MaterialTheme.typography.bodySmall)
                         }
                         AssistChip(
                             onClick = {},
@@ -606,7 +615,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                                 val index = times.indexOf(time)
                                 if (index >= 0) times[index] = LocalTime.of(hour, minute)
                             }, time.hour, time.minute, false).show()
-                        }) { Text(time.format(TIME_FORMATTER), style = MaterialTheme.typography.titleMedium) }
+                        }) { Text(time.format(timeFormatter(locale)), style = MaterialTheme.typography.titleMedium) }
                         Spacer(Modifier.weight(1f))
                         if (times.size > 1) {
                             TextButton(onClick = { times.remove(time) }) { Text(stringResource(R.string.remove)) }
@@ -763,6 +772,7 @@ private fun com.example.medicationreminder.domain.model.MedicationSchedule.zoneI
     TimeZoneMode.MANUAL -> manualZoneId?.let(ZoneId::of) ?: ZoneId.systemDefault()
 }
 
-private val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a")
-private val DISPLAY_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d • h:mm a")
-private fun formatInstant(instant: Instant, zoneId: ZoneId): String = DISPLAY_FORMATTER.format(instant.atZone(zoneId))
+private fun timeFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", locale)
+private fun displayFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d • h:mm a", locale)
+private fun formatInstant(instant: Instant, zoneId: ZoneId, locale: Locale): String =
+    displayFormatter(locale).format(instant.atZone(zoneId))
