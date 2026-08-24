@@ -1,6 +1,7 @@
 package com.example.medicationreminder.data.settings
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -31,6 +32,14 @@ class AppPreferences(private val context: Context) {
         context.reminderDataStore.edit { it[APP_LANGUAGE] = language.languageTag }
     }
 
+    val permissionPromptDismissed: Flow<Boolean> = context.reminderDataStore.data
+        .map { it[PERMISSION_PROMPT_DISMISSED] == true }
+        .distinctUntilChanged()
+
+    suspend fun setPermissionPromptDismissed() {
+        context.reminderDataStore.edit { it[PERMISSION_PROMPT_DISMISSED] = true }
+    }
+
     suspend fun updateAndGetPreviousDeviceZone(currentZoneId: String): String? {
         val previous = context.reminderDataStore.data.first()[LAST_DEVICE_ZONE]
         context.reminderDataStore.edit { it[LAST_DEVICE_ZONE] = currentZoneId }
@@ -39,6 +48,7 @@ class AppPreferences(private val context: Context) {
 
     private companion object {
         val APP_LANGUAGE = stringPreferencesKey("app_language")
+        val PERMISSION_PROMPT_DISMISSED = booleanPreferencesKey("permission_prompt_dismissed")
         val LAST_DEVICE_ZONE = stringPreferencesKey("last_device_zone")
     }
 }

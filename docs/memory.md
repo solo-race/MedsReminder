@@ -25,6 +25,7 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 | `88afc03` | 2026-08-24 | v0.013: consistent Material icons in bottom navigation (`material-icons-extended`, BOM-pinned) replacing text glyphs that rendered at unequal sizes; all three icons now standard 24dp. User-confirmed on device. |
 | `67c5e7f` | 2026-08-24 | v0.014: merge `codex/fix-localized-context-crashes` into master. |
 | — | 2026-08-24 | v0.016: drop lockscreen full-screen override; keep setAlarmClock scheduling. |
+| — | 2026-08-24 | v0.017: notification settings guidance, first-run permission dialog, alias label text. |
 
 
 ## Beta release

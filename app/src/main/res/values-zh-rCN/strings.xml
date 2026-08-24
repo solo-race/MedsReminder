@@ -32,7 +32,7 @@
     <string name="back">返回</string>
     <string name="save">保存</string>
     <string name="medication_name">药物名称</string>
-    <string name="alias_label">通知别名（可选）</string>
+    <string name="alias_label">别名/编辑通知消息</string>
     <string name="alias_hint">提醒中将显示别名而非药物名称</string>
     <string name="amount_dosage">用量/剂量</string>
     <string name="dosage_placeholder">例如：1片或5毫升</string>
@@ -64,4 +64,11 @@
     <string name="error_missing_medication_fields">请填写名称和剂量，并至少选择一个时间和一个星期几。</string>
     <string name="error_save_medication">无法保存此药物。</string>
     <string name="error_delete_medication">无法删除此药物。</string>
+    <string name="lockscreen_guidance_title">锁屏显示提醒</string>
+    <string name="lockscreen_guidance_description">要在系统锁屏（乐划锁屏）上显示提醒，请在系统通知管理中勾选“锁屏/横幅”：应用管理 → 用药管理 → 通知管理。</string>
+    <string name="open_notification_settings">打开通知设置</string>
+    <string name="permission_dialog_title">开启通知权限</string>
+    <string name="permission_dialog_message">提醒需要通知权限。可在系统通知管理中开启通知，并勾选“锁屏/横幅”，让提醒显示在锁屏上。</string>
+    <string name="permission_dialog_go_settings">去设置</string>
+    <string name="permission_dialog_skip">跳过设置</string>
 </resources>

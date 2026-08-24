@@ -39,6 +39,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         AppLanguage.ENGLISH,
     )
 
+    val permissionPromptDismissed = container.preferences.permissionPromptDismissed.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        true,
+    )
+
     private val _error = MutableStateFlow<Int?>(null)
     val error: StateFlow<Int?> = _error.asStateFlow()
 
@@ -55,6 +61,10 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setLanguage(language: AppLanguage) {
         viewModelScope.launch { container.preferences.setLanguage(language) }
+    }
+
+    fun dismissPermissionPrompt() {
+        viewModelScope.launch { container.preferences.setPermissionPromptDismissed() }
     }
 
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()

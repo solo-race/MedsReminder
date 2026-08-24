@@ -8,6 +8,7 @@ package com.example.medicationreminder.ui
 import android.Manifest
 import android.app.AlarmManager
 import android.app.TimePickerDialog
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
@@ -171,6 +172,38 @@ private fun MedicationAppContent(
             openedNotificationTarget = true
             navController.navigate(Routes.edit(notificationMedicationId))
         }
+    }
+
+    val context = LocalContext.current
+    val permissionPromptDismissed by viewModel.permissionPromptDismissed.collectAsStateWithLifecycle()
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(permissionPromptDismissed) {
+        val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        if (!canNotify && !permissionPromptDismissed) showPermissionDialog = true
+    }
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.dismissPermissionPrompt()
+                showPermissionDialog = false
+            },
+            title = { Text(stringResource(R.string.permission_dialog_title)) },
+            text = { Text(stringResource(R.string.permission_dialog_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissPermissionPrompt()
+                    showPermissionDialog = false
+                    openAppNotificationSettings(context)
+                }) { Text(stringResource(R.string.permission_dialog_go_settings)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissPermissionPrompt()
+                    showPermissionDialog = false
+                }) { Text(stringResource(R.string.permission_dialog_skip)) }
+            },
+        )
     }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
@@ -444,6 +477,14 @@ private fun SettingsScreen(
         }
         item {
             SettingCard(
+                title = stringResource(R.string.lockscreen_guidance_title),
+                description = stringResource(R.string.lockscreen_guidance_description),
+                action = stringResource(R.string.open_notification_settings),
+                onAction = { openAppNotificationSettings(context) },
+            )
+        }
+        item {
+            SettingCard(
                 title = stringResource(R.string.privacy),
                 description = stringResource(R.string.privacy_description),
             )
@@ -487,6 +528,20 @@ private fun SettingCard(title: String, description: String, action: String? = nu
                 OutlinedButton(onClick = onAction) { Text(action) }
             }
         }
+    }
+}
+
+private fun openAppNotificationSettings(context: Context) {
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${context.packageName}")),
+        )
     }
 }
 
