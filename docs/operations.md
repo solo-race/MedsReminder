@@ -25,7 +25,7 @@ Problems hit while running build/verification commands in managed shells, with t
 | --- | --- | --- |
 | Signature mismatch between debug and release installs | `INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package ... signatures do not match` | Uninstall before switching variants: `adb uninstall com.example.medicationreminder` |
 | `install -r` failure masked by `| tail -1` | App keeps running old code after "successful" session | After variant switches always uninstall first; verify what is installed via `adb shell dumpsys package com.example.medicationreminder | grep -E 'versionName|lastUpdateTime'` |
-| ColorOS blocks `pm grant` for shell | `SecurityException: grantRuntimePermission: Neither user 2000 nor current process has GRANT_RUNTIME_PERMISSIONS` | Grant permissions through the app's own Settings flow (UI automation) instead of `pm grant` |
+| ColorOS blocks `pm grant`/`pm revoke` for shell | `SecurityException: grantRuntimePermission/revokeRuntimePermission: Neither user 2000 nor current process has ...` | Grant/revoke via the OEM notification manager master switch (`com.oplus.notificationmanager`, 允许通知 toggle maps to POST_NOTIFICATIONS), opened by the app's own deep link; `install -r -g` also still works for granting |
 | Stale process after reinstall | UI dump shows old strings; window handle unchanged | `adb shell am force-stop <pkg>` then relaunch |
 | Chinese IME swallows `input text` | Typed text does not reach Compose fields | Switch device keyboard to English first |
 | Keyboard shifts layout mid-flow | Taps at remembered coordinates miss targets | Re-dump `uiautomator` after every keyboard show/hide before tapping |

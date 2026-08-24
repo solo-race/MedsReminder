@@ -65,7 +65,7 @@
     <string name="error_save_medication">无法保存此药物。</string>
     <string name="error_delete_medication">无法删除此药物。</string>
     <string name="lockscreen_guidance_title">锁屏显示提醒</string>
-    <string name="lockscreen_guidance_description">要在系统锁屏（乐划锁屏）上显示提醒，请在系统通知管理中勾选“锁屏/横幅”：应用管理 → 用药管理 → 通知管理。</string>
+    <string name="lockscreen_guidance_description">要在系统锁屏（乐划锁屏）上显示提醒，请在系统通知管理中勾选“锁屏/横幅”：应用管理 → 用药提醒 → 通知管理。</string>
     <string name="open_notification_settings">打开通知设置</string>
     <string name="permission_dialog_title">开启通知权限</string>
     <string name="permission_dialog_message">提醒需要通知权限。可在系统通知管理中开启通知，并勾选“锁屏/横幅”，让提醒显示在锁屏上。</string>
