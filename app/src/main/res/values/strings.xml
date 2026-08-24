@@ -65,7 +65,7 @@
     <string name="error_save_medication">Could not save this medication.</string>
     <string name="error_delete_medication">Could not delete this medication.</string>
     <string name="lockscreen_guidance_title">Reminders on the lockscreen</string>
-    <string name="lockscreen_guidance_description">To show reminders over the system lockscreen (乐划锁屏), enable Lockscreen/Banner in the system notification management: App management → Medication Reminder → Notification management.</string>
+    <string name="lockscreen_guidance_description">To show reminders over the system lockscreen, enable Lockscreen/Banner in the system notification management: App management → Medication Reminder → Notification management.</string>
     <string name="open_notification_settings">Open notification settings</string>
     <string name="permission_dialog_title">Enable notifications</string>
     <string name="permission_dialog_message">Reminders need notification permission. In the system notification management you can also enable Lockscreen/Banner so reminders show on the lockscreen.</string>
