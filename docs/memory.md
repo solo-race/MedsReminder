@@ -34,6 +34,7 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 - First beta `v1.0.0-beta.1` published 2026-08-23 as a GitHub release with the signed, minified `app-release.apk`; built by `.github/workflows/release.yml` (tag `v*` → signed `assembleRelease` → `softprops/action-gh-release`).
 - Signing: local `release.keystore` + `keystore.properties` (both gitignored); CI gets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` repo secrets. Key alias `medsreminder`; key password equals store password (Windows keytool ignored `-keypass` — keep them equal if the keystore is regenerated).
 - Second beta `v1.0.0-beta.2` published 2026-08-24 from tag on master `67c5e7f`; same workflow and signing path as beta.1. Contains v0.011–v0.014. CI run `32655679291`; CI-built APK installed and smoke-tested on device (Settings screen renders, nav icons equal size, 0 crashes).
+- Third beta `v1.0.0-beta.3` published 2026-08-24 from annotated tag on master `b353615` (contains v0.016–v0.018); same workflow and signing path as beta.2. Release workflow run `32694140705`. CI-built APK downloaded and verified before release: signed by the release cert (CN=Meds Reminder, O=solo-race), 112 packaged files are code/libs/license metadata only — no database, media, or user data files and no medication names in any packaged content; `versionName` still `1.0.0-beta.1` (same convention as beta.2).
 
 ## Verification evidence
 
