@@ -22,7 +22,7 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-persistent-notification` | `a583915` | Tracks master; behavior suite-verified, device smoke pending. |
 | `codex/feature-chinese-language` | `b594fc2` | Strings + Settings selector in master via v0.005; notification copy localization, tests, and device verification pending. |
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
-| `codex/feature-notification-guidance` | — | In progress: notification settings guidance, first-run permission dialog, alias label text. |
+| `codex/feature-notification-guidance` | `27d2382` | In progress: notification settings guidance, first-run permission dialog, alias label text. |
 
 ## Verification
 
