@@ -32,7 +32,7 @@
     <string name="back">Back</string>
     <string name="save">Save</string>
     <string name="medication_name">Medication name</string>
-    <string name="alias_label">Notification alias (optional)</string>
+    <string name="alias_label">Alias / edit notification text</string>
     <string name="alias_hint">Shown in reminders instead of the name</string>
     <string name="amount_dosage">Amount / dosage</string>
     <string name="dosage_placeholder">e.g. 1 tablet or 5 mL</string>
@@ -64,4 +64,11 @@
     <string name="error_missing_medication_fields">Add a name, dosage, at least one time, and one weekday.</string>
     <string name="error_save_medication">Could not save this medication.</string>
     <string name="error_delete_medication">Could not delete this medication.</string>
+    <string name="lockscreen_guidance_title">Reminders on the lockscreen</string>
+    <string name="lockscreen_guidance_description">To show reminders over the system lockscreen, enable Lockscreen/Banner in the system notification management: App management → Medication Reminder → Notification management.</string>
+    <string name="open_notification_settings">Open notification settings</string>
+    <string name="permission_dialog_title">Enable notifications</string>
+    <string name="permission_dialog_message">Reminders need notification permission. In the system notification management you can also enable Lockscreen/Banner so reminders show on the lockscreen.</string>
+    <string name="permission_dialog_go_settings">Go to settings</string>
+    <string name="permission_dialog_skip">Skip</string>
 </resources>
