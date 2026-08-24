@@ -26,6 +26,7 @@ History and evidence only. Active rules live in `AGENTS.md`, `app/AGENTS.md`, an
 | `67c5e7f` | 2026-08-24 | v0.014: merge `codex/fix-localized-context-crashes` into master. |
 | `3e43ef6` | 2026-08-24 | v0.016: drop lockscreen full-screen override; keep setAlarmClock scheduling. |
 | `27d2382` | 2026-08-24 | v0.017: notification settings guidance, first-run permission dialog, alias label text. |
+| `40afac8` | 2026-08-24 | v0.018: merge `codex/feature-notification-guidance` into master. |
 
 
 ## Beta release
