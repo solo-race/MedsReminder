@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.example.medicationreminder.MainActivity
 import com.example.medicationreminder.data.repository.MedicationRepository
 import com.example.medicationreminder.domain.model.ScheduledDose
 import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
@@ -21,12 +22,19 @@ class ReminderScheduler(
 
     fun schedule(dose: ScheduledDose) {
         val triggerAt = NextDoseCalculator.nextOccurrence(dose) ?: return
-        val pendingIntent = reminderPendingIntent(dose, triggerAt.toEpochMilli())
-        if (canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt.toEpochMilli(), pendingIntent)
-        } else {
-            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt.toEpochMilli(), pendingIntent)
-        }
+        val showIntent = PendingIntent.getActivity(
+            context,
+            requestCode(dose.doseTimeId, SHOW_INTENT_OFFSET),
+            Intent(context, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_MEDICATION_ID, dose.medicationId),
+            PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag(),
+        )
+        // setAlarmClock dispatches at the exact millisecond even under OEM alarm batching and Doze,
+        // unlike setExactAndAllowWhileIdle which ColorOS widens into a 1-hour window.
+        alarmManager.setAlarmClock(
+            AlarmManager.AlarmClockInfo(triggerAt.toEpochMilli(), showIntent),
+            reminderPendingIntent(dose, triggerAt.toEpochMilli()),
+        )
     }
 
     fun cancel(doseTimeId: Long) {
@@ -58,6 +66,8 @@ class ReminderScheduler(
         )
 
     companion object {
+        const val SHOW_INTENT_OFFSET = 7
+
         fun requestCode(id: Long, offset: Int): Int =
             ((id xor (id ushr 32)).toInt() and Int.MAX_VALUE).let { it + offset }
 
