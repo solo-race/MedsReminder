@@ -45,6 +45,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         true,
     )
 
+    val repostMissedReminders = container.preferences.repostMissedReminders.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        false,
+    )
+
     private val _error = MutableStateFlow<Int?>(null)
     val error: StateFlow<Int?> = _error.asStateFlow()
 
@@ -65,6 +71,10 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun dismissPermissionPrompt() {
         viewModelScope.launch { container.preferences.setPermissionPromptDismissed() }
+    }
+
+    fun setRepostMissedReminders(enabled: Boolean) {
+        viewModelScope.launch { container.preferences.setRepostMissedReminders(enabled) }
     }
 
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()

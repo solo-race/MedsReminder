@@ -8,6 +8,7 @@ import com.example.medicationreminder.data.photos.MedicationImageStore
 import com.example.medicationreminder.data.repository.MedicationRepository
 import com.example.medicationreminder.data.repository.RoomMedicationRepository
 import com.example.medicationreminder.data.settings.AppPreferences
+import com.example.medicationreminder.reminders.MissedReminderReposter
 import com.example.medicationreminder.reminders.ReminderScheduler
 import com.example.medicationreminder.reminders.ReminderNotifications
 
@@ -36,6 +37,7 @@ class AppContainer(context: Context) {
     val preferences = AppPreferences(context)
     val notifications = ReminderNotifications(context)
     val scheduler = ReminderScheduler(context, repository)
+    val missedReminderReposter = MissedReminderReposter(repository, notifications)
 }
 
 val Context.appContainer: AppContainer
