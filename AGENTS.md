@@ -23,6 +23,7 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-chinese-language` | `b594fc2` | Strings + Settings selector in master via v0.005; notification copy localization, tests, and device verification pending. |
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
 | `codex/feature-notification-guidance` | `40afac8` | Merged into master (`40afac8`, v0.018). |
+| `codex/feature-repost-missed-reminders` | `4dc52ee` | v0.019: Settings-gated self-heal re-posting; suite + device verified. |
 
 ## Verification
 
