@@ -7,6 +7,7 @@ import com.example.medicationreminder.data.local.MedicationDatabase
 import com.example.medicationreminder.data.local.MedicationEntity
 import com.example.medicationreminder.data.local.MedicationScheduleEntity
 import com.example.medicationreminder.domain.model.DoseEvent
+import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.DoseTime
 import com.example.medicationreminder.domain.model.Medication
@@ -35,6 +36,7 @@ interface MedicationRepository {
         scheduledFor: Instant,
         status: DoseStatus,
     )
+    suspend fun recordDoseIfOccurrenceActionable(occurrence: DoseOccurrence, status: DoseStatus): Boolean
     suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean
     suspend fun setScheduleToDeviceTime(scheduleId: Long)
     suspend fun manualSchedules(): List<MedicationSchedule>
@@ -86,6 +88,27 @@ internal fun reconcileDoseTimes(
         toUpdate = toUpdate,
         idsToDelete = idsToDelete,
     )
+}
+
+internal fun isOccurrenceActionable(
+    medication: MedicationEntity?,
+    schedule: MedicationScheduleEntity?,
+    doseTime: DoseTimeEntity?,
+    occurrence: DoseOccurrence,
+): Boolean {
+    if (medication == null || !medication.enabled || medication.id != occurrence.medicationId) return false
+    if (schedule == null || schedule.medicationId != medication.id) return false
+    if (doseTime == null || !doseTime.enabled || doseTime.id != occurrence.doseTimeId || doseTime.scheduleId != schedule.id) return false
+
+    val zoneId = schedule.toDomain().zoneId()
+    if (zoneId != occurrence.zoneId) return false
+
+    val occurrenceDate = occurrence.scheduledFor.atZone(zoneId).toLocalDate()
+    if (occurrenceDate.dayOfWeek !in schedule.weekdaysMask.toWeekdays()) return false
+
+    val scheduledTime = LocalTime.of(doseTime.minuteOfDay / 60, doseTime.minuteOfDay % 60)
+    val expectedInstant = occurrenceDate.atTime(scheduledTime).atZone(zoneId).toInstant()
+    return expectedInstant == occurrence.scheduledFor
 }
 
 class RoomMedicationRepository(
@@ -240,6 +263,30 @@ class RoomMedicationRepository(
         scheduledFor: Instant,
         status: DoseStatus,
     ) = database.withTransaction {
+        insertDoseEvent(medicationId, doseTimeId, scheduledFor, status)
+    }
+
+    override suspend fun recordDoseIfOccurrenceActionable(occurrence: DoseOccurrence, status: DoseStatus): Boolean =
+        database.withTransaction {
+            val medication = medicationDao.getById(occurrence.medicationId)
+            val schedule = scheduleDao.getForMedication(occurrence.medicationId)
+            val doseTime = doseTimeDao.getById(occurrence.doseTimeId)
+            if (!isOccurrenceActionable(medication, schedule, doseTime, occurrence)) return@withTransaction false
+            insertDoseEvent(
+                occurrence.medicationId,
+                occurrence.doseTimeId,
+                occurrence.scheduledFor,
+                status,
+            )
+            true
+        }
+
+    private suspend fun insertDoseEvent(
+        medicationId: Long,
+        doseTimeId: Long,
+        scheduledFor: Instant,
+        status: DoseStatus,
+    ) {
         val now = System.currentTimeMillis()
         doseEventDao.insertOrReplace(
             DoseEventEntity(
