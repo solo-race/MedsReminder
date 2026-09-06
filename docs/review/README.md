@@ -6,7 +6,7 @@ This directory is the canonical archive for repository architecture, feature, im
 
 **Always read the latest review before making architecture or feature implementation decisions.**
 
-Latest review: [`2026-09-07-0021-sgt-medication-detail-dose-actions.md`](2026-09-07-0021-sgt-medication-detail-dose-actions.md)
+Latest review: [`2026-09-07-0142-sgt-phase-1-stable-dose-time-identity.md`](2026-09-07-0142-sgt-phase-1-stable-dose-time-identity.md)
 
 The `Latest review` pointer above is authoritative. Every new review must update this pointer in the same change that adds the review document.
 
@@ -24,4 +24,5 @@ The `Latest review` pointer above is authoritative. Every new review must update
 
 | Review time | Scope | Branch / base | Disposition |
 | --- | --- | --- | --- |
+| 2026-09-07 01:42 SGT | Phase 1 — Stable Dose-Time Identity implementation Review Gate | `codex/feature-medication-detail-dose-actions` @ `a338931e` | PASS WITH NON-BLOCKING FINDINGS; Phase 1 gate passed |
 | 2026-09-07 00:21 SGT | Medication Detail + pre-alarm dose decisions architecture/implementation review | `codex/feature-medication-detail-dose-actions`, based on `master` `ebafa559` | Plan revised; implementation prerequisites identified |
