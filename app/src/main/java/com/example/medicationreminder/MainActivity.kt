@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.example.medicationreminder.domain.model.DoseOccurrence
-import com.example.medicationreminder.ui.MedicationApp
+import com.example.medicationreminder.ui.MedicationAppEntry
 import com.example.medicationreminder.ui.MedicationViewModel
 import com.example.medicationreminder.ui.theme.MedicationReminderTheme
 import java.time.Instant
@@ -19,9 +19,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val occurrence = intentDoseOccurrence()
+        val fallbackMedicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
         setContent {
             MedicationReminderTheme {
-                MedicationApp(viewModel, occurrence?.medicationId ?: intent.getLongExtra(EXTRA_MEDICATION_ID, -1))
+                MedicationAppEntry(
+                    viewModel = viewModel,
+                    notificationOccurrence = occurrence,
+                    notificationMedicationId = fallbackMedicationId,
+                )
             }
         }
     }

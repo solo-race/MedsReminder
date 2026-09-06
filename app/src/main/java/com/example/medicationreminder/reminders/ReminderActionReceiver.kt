@@ -35,7 +35,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
         const val EXTRA_MEDICATION_ID = "medication_id"
         const val EXTRA_DOSE_TIME_ID = "dose_time_id"
         const val EXTRA_SCHEDULED_FOR = "scheduled_for"
+        const val EXTRA_ZONE_ID = "zone_id"
         const val EXTRA_STATUS = "status"
     }
 }
-

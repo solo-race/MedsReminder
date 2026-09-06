@@ -27,14 +27,11 @@ class ReminderReceiver : BroadcastReceiver() {
                     }
                 if (currentDose != null) {
                     container.notifications.showReminder(
-                        medicationId = occurrence.medicationId,
-                        doseTimeId = occurrence.doseTimeId,
-                        scheduledFor = occurrence.scheduledFor.toEpochMilli(),
+                        occurrence = occurrence,
                         alias = currentDose.medicationAlias,
                         dosage = currentDose.dosageText,
                     )
-                    // One alarm per dose is kept in the system. Schedule tomorrow/next weekday after firing.
-                    container.scheduler.schedule(currentDose)
+                    container.scheduler.scheduleFromFiredOccurrence(currentDose, occurrence.scheduledFor)
                 }
                 // Optional self-heal: restore reminders the system cleared while the process was frozen.
                 if (container.preferences.repostMissedReminders.first()) {
@@ -63,4 +60,3 @@ class ReminderReceiver : BroadcastReceiver() {
         }
     }
 }
-
