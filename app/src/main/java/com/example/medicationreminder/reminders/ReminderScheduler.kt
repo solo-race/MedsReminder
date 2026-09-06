@@ -7,9 +7,24 @@ import android.content.Intent
 import android.os.Build
 import com.example.medicationreminder.MainActivity
 import com.example.medicationreminder.data.repository.MedicationRepository
+import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.ScheduledDose
 import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
 import java.time.Instant
+
+internal suspend fun nextUndecidedOccurrence(
+    dose: ScheduledDose,
+    after: Instant,
+    isDecided: suspend (DoseOccurrence) -> Boolean,
+): DoseOccurrence? {
+    var boundary = after
+    while (true) {
+        val scheduledFor = NextDoseCalculator.nextOccurrence(dose, boundary) ?: return null
+        val occurrence = dose.occurrenceAt(scheduledFor)
+        if (!isDecided(occurrence)) return occurrence
+        boundary = scheduledFor
+    }
+}
 
 class ReminderScheduler(
     private val context: Context,
@@ -18,21 +33,28 @@ class ReminderScheduler(
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
     suspend fun scheduleAll() {
-        repository.activeScheduledDoses().forEach(::schedule)
+        for (dose in repository.activeScheduledDoses()) {
+            schedule(dose)
+        }
     }
 
-    fun schedule(dose: ScheduledDose) {
-        val triggerAt = NextDoseCalculator.nextOccurrence(dose) ?: return
-        scheduleAt(dose, triggerAt)
+    suspend fun schedule(dose: ScheduledDose) {
+        scheduleAfter(dose, Instant.now())
     }
 
-    fun scheduleAfter(dose: ScheduledDose, boundary: Instant) {
-        val triggerAt = NextDoseCalculator.nextOccurrence(dose, boundary) ?: return
-        scheduleAt(dose, triggerAt)
+    suspend fun scheduleAfter(dose: ScheduledDose, boundary: Instant) {
+        val occurrence = nextUndecidedOccurrence(dose, boundary) { candidate ->
+            repository.hasDoseDecisionOnLocalDay(
+                candidate.doseTimeId,
+                candidate.scheduledFor,
+                candidate.zoneId,
+            )
+        } ?: return
+        scheduleAt(dose, occurrence)
     }
 
-    private fun scheduleAt(dose: ScheduledDose, triggerAt: Instant) {
-        val occurrence = dose.occurrenceAt(triggerAt)
+    private fun scheduleAt(dose: ScheduledDose, occurrence: DoseOccurrence) {
+        val triggerAt = occurrence.scheduledFor
         val showIntent = PendingIntent.getActivity(
             context,
             requestCode(dose.doseTimeId, SHOW_INTENT_OFFSET),

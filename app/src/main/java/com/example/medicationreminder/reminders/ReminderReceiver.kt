@@ -19,21 +19,30 @@ class ReminderReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                val currentDose = container.repository.activeScheduledDoses()
-                    .firstOrNull {
-                        it.medicationId == occurrence.medicationId &&
-                            it.doseTimeId == occurrence.doseTimeId &&
-                            it.zoneId == occurrence.zoneId
-                    }
-                if (currentDose != null) {
-                    container.notifications.showReminder(
-                        occurrence = occurrence,
-                        alias = currentDose.medicationAlias,
-                        dosage = currentDose.dosageText,
-                    )
-                    // One alarm per dose is kept in the system. Phase 4 will make this reschedule path decision-aware.
-                    container.scheduler.schedule(currentDose)
-                }
+                handleFiredOccurrence(
+                    occurrence = occurrence,
+                    activeDoses = container.repository.activeScheduledDoses(),
+                    isDecided = {
+                        container.repository.hasDoseDecisionOnLocalDay(
+                            occurrence.doseTimeId,
+                            occurrence.scheduledFor,
+                            occurrence.zoneId,
+                        )
+                    },
+                    showReminder = { dose ->
+                        container.notifications.showReminder(
+                            occurrence = occurrence,
+                            alias = dose.medicationAlias,
+                            dosage = dose.dosageText,
+                        )
+                    },
+                    cancelVisibleReminder = {
+                        container.notifications.cancelReminder(occurrence.doseTimeId)
+                    },
+                    scheduleFollowing = { dose, boundary ->
+                        container.scheduler.scheduleAfter(dose, boundary)
+                    },
+                )
                 // Optional self-heal: restore reminders the system cleared while the process was frozen.
                 if (container.preferences.repostMissedReminders.first()) {
                     container.missedReminderReposter.repostUndecidedOverdue()

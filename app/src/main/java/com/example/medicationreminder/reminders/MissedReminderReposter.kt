@@ -17,10 +17,25 @@ class MissedReminderReposter(
         plan(repository.activeScheduledDoses(), now) { dose, occurredAt ->
             repository.hasDoseDecisionOnLocalDay(dose.doseTimeId, occurredAt, dose.zoneId)
         }.forEach { missed ->
-            notifications.showReminder(
-                occurrence = missed.dose.occurrenceAt(missed.scheduledFor),
-                alias = missed.dose.medicationAlias,
-                dosage = missed.dose.dosageText,
+            val occurrence = missed.dose.occurrenceAt(missed.scheduledFor)
+            deliverReminderIfUndecided(
+                dose = missed.dose,
+                occurrence = occurrence,
+                isDecided = {
+                    repository.hasDoseDecisionOnLocalDay(
+                        occurrence.doseTimeId,
+                        occurrence.scheduledFor,
+                        occurrence.zoneId,
+                    )
+                },
+                showReminder = {
+                    notifications.showReminder(
+                        occurrence = occurrence,
+                        alias = missed.dose.medicationAlias,
+                        dosage = missed.dose.dosageText,
+                    )
+                },
+                cancelVisibleReminder = { notifications.cancelReminder(occurrence.doseTimeId) },
             )
         }
     }
