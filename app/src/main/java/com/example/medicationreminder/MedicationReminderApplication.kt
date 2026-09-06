@@ -8,9 +8,11 @@ import com.example.medicationreminder.data.photos.MedicationImageStore
 import com.example.medicationreminder.data.repository.MedicationRepository
 import com.example.medicationreminder.data.repository.RoomMedicationRepository
 import com.example.medicationreminder.data.settings.AppPreferences
+import com.example.medicationreminder.domain.decision.DoseDecisionUseCase
 import com.example.medicationreminder.reminders.MissedReminderReposter
-import com.example.medicationreminder.reminders.ReminderScheduler
+import com.example.medicationreminder.reminders.ReminderDoseDecisionEffects
 import com.example.medicationreminder.reminders.ReminderNotifications
+import com.example.medicationreminder.reminders.ReminderScheduler
 
 class MedicationReminderApplication : Application() {
     lateinit var container: AppContainer
@@ -32,12 +34,17 @@ class AppContainer(context: Context) {
         .addMigrations(MedicationDatabase.MIGRATION_1_2)
         .build()
 
-    val repository: MedicationRepository = RoomMedicationRepository(database)
+    private val roomRepository = RoomMedicationRepository(database)
+    val repository: MedicationRepository = roomRepository
     val imageStore = MedicationImageStore(context)
     val preferences = AppPreferences(context)
     val notifications = ReminderNotifications(context)
     val scheduler = ReminderScheduler(context, repository)
     val missedReminderReposter = MissedReminderReposter(repository, notifications)
+    val doseDecisionUseCase = DoseDecisionUseCase(
+        repository = roomRepository,
+        effects = ReminderDoseDecisionEffects(repository, scheduler, notifications),
+    )
 }
 
 val Context.appContainer: AppContainer

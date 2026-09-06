@@ -9,6 +9,7 @@ import com.example.medicationreminder.MainActivity
 import com.example.medicationreminder.data.repository.MedicationRepository
 import com.example.medicationreminder.domain.model.ScheduledDose
 import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
+import java.time.Instant
 
 class ReminderScheduler(
     private val context: Context,
@@ -22,6 +23,15 @@ class ReminderScheduler(
 
     fun schedule(dose: ScheduledDose) {
         val triggerAt = NextDoseCalculator.nextOccurrence(dose) ?: return
+        scheduleAt(dose, triggerAt)
+    }
+
+    fun scheduleAfter(dose: ScheduledDose, boundary: Instant) {
+        val triggerAt = NextDoseCalculator.nextOccurrence(dose, boundary) ?: return
+        scheduleAt(dose, triggerAt)
+    }
+
+    private fun scheduleAt(dose: ScheduledDose, triggerAt: Instant) {
         val occurrence = dose.occurrenceAt(triggerAt)
         val showIntent = PendingIntent.getActivity(
             context,
@@ -83,4 +93,3 @@ class ReminderScheduler(
         }
     }
 }
-

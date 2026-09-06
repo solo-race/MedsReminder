@@ -6,6 +6,7 @@ import com.example.medicationreminder.data.local.DoseTimeEntity
 import com.example.medicationreminder.data.local.MedicationDatabase
 import com.example.medicationreminder.data.local.MedicationEntity
 import com.example.medicationreminder.data.local.MedicationScheduleEntity
+import com.example.medicationreminder.domain.model.DoseDecisionResult
 import com.example.medicationreminder.domain.model.DoseEvent
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
@@ -30,16 +31,13 @@ interface MedicationRepository {
     suspend fun saveMedication(draft: MedicationDraft): SaveMedicationResult
     suspend fun deleteMedication(medicationId: Long): String?
     suspend fun activeScheduledDoses(): List<ScheduledDose>
-    suspend fun recordDose(
-        medicationId: Long,
-        doseTimeId: Long,
-        scheduledFor: Instant,
-        status: DoseStatus,
-    )
-    suspend fun recordDoseIfOccurrenceActionable(occurrence: DoseOccurrence, status: DoseStatus): Boolean
     suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean
     suspend fun setScheduleToDeviceTime(scheduleId: Long)
     suspend fun manualSchedules(): List<MedicationSchedule>
+}
+
+internal interface DoseDecisionRepository {
+    suspend fun decideDose(occurrence: DoseOccurrence, status: DoseStatus): DoseDecisionResult
 }
 
 data class SaveMedicationResult(val medicationId: Long, val replacedPhotoPath: String?)
@@ -111,9 +109,9 @@ internal fun isOccurrenceActionable(
     return expectedInstant == occurrence.scheduledFor
 }
 
-class RoomMedicationRepository(
+internal class RoomMedicationRepository(
     private val database: MedicationDatabase,
-) : MedicationRepository {
+) : MedicationRepository, DoseDecisionRepository {
     private val medicationDao = database.medicationDao()
     private val scheduleDao = database.scheduleDao()
     private val doseTimeDao = database.doseTimeDao()
@@ -257,48 +255,40 @@ class RoomMedicationRepository(
         }
     }
 
-    override suspend fun recordDose(
-        medicationId: Long,
-        doseTimeId: Long,
-        scheduledFor: Instant,
-        status: DoseStatus,
-    ) = database.withTransaction {
-        insertDoseEvent(medicationId, doseTimeId, scheduledFor, status)
-    }
-
-    override suspend fun recordDoseIfOccurrenceActionable(occurrence: DoseOccurrence, status: DoseStatus): Boolean =
+    override suspend fun decideDose(occurrence: DoseOccurrence, status: DoseStatus): DoseDecisionResult =
         database.withTransaction {
             val medication = medicationDao.getById(occurrence.medicationId)
             val schedule = scheduleDao.getForMedication(occurrence.medicationId)
             val doseTime = doseTimeDao.getById(occurrence.doseTimeId)
-            if (!isOccurrenceActionable(medication, schedule, doseTime, occurrence)) return@withTransaction false
-            insertDoseEvent(
-                occurrence.medicationId,
-                occurrence.doseTimeId,
-                occurrence.scheduledFor,
-                status,
-            )
-            true
-        }
+            if (!isOccurrenceActionable(medication, schedule, doseTime, occurrence)) {
+                return@withTransaction DoseDecisionResult.StaleOccurrence
+            }
 
-    private suspend fun insertDoseEvent(
-        medicationId: Long,
-        doseTimeId: Long,
-        scheduledFor: Instant,
-        status: DoseStatus,
-    ) {
-        val now = System.currentTimeMillis()
-        doseEventDao.insertOrReplace(
-            DoseEventEntity(
-                medicationId = medicationId,
-                doseTimeId = doseTimeId,
-                scheduledForEpochMillis = scheduledFor.toEpochMilli(),
-                status = status,
-                actionedAtEpochMillis = now,
-            ),
-        )
-        doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
-    }
+            val day = occurrence.scheduledFor.atZone(occurrence.zoneId).toLocalDate()
+            val fromInclusive = day.atStartOfDay(occurrence.zoneId).toInstant().toEpochMilli()
+            val toInclusive = day.plusDays(1).atStartOfDay(occurrence.zoneId).toInstant().toEpochMilli() - 1
+            val existing = doseEventDao.firstForOnLocalDay(
+                occurrence.doseTimeId,
+                fromInclusive,
+                toInclusive,
+            )
+            if (existing != null) {
+                return@withTransaction DoseDecisionResult.AlreadyDecided(existing.status)
+            }
+
+            val now = System.currentTimeMillis()
+            doseEventDao.insert(
+                DoseEventEntity(
+                    medicationId = occurrence.medicationId,
+                    doseTimeId = occurrence.doseTimeId,
+                    scheduledForEpochMillis = occurrence.scheduledFor.toEpochMilli(),
+                    status = status,
+                    actionedAtEpochMillis = now,
+                ),
+            )
+            doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
+            DoseDecisionResult.Recorded(status)
+        }
 
     override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
         val day = scheduledFor.atZone(zoneId).toLocalDate()

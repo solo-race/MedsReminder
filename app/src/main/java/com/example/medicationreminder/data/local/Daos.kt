@@ -2,7 +2,6 @@ package com.example.medicationreminder.data.local
 
 import androidx.room.Dao
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -95,14 +94,25 @@ interface DoseEventDao {
     )
     fun observeAllWithMedication(): Flow<List<DoseEventRow>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrReplace(event: DoseEventEntity)
+    @Insert
+    suspend fun insert(event: DoseEventEntity)
 
     @Query("DELETE FROM dose_events WHERE actionedAtEpochMillis < :cutoffEpochMillis")
     suspend fun deleteOlderThan(cutoffEpochMillis: Long)
 
     @Query("DELETE FROM dose_events WHERE medicationId = :medicationId")
     suspend fun deleteForMedication(medicationId: Long)
+
+    @Query(
+        """
+        SELECT * FROM dose_events
+        WHERE doseTimeId = :doseTimeId
+          AND scheduledForEpochMillis BETWEEN :fromInclusive AND :toInclusive
+        ORDER BY actionedAtEpochMillis ASC, id ASC
+        LIMIT 1
+        """
+    )
+    suspend fun firstForOnLocalDay(doseTimeId: Long, fromInclusive: Long, toInclusive: Long): DoseEventEntity?
 
     @Query(
         """

@@ -18,9 +18,7 @@ class MissedReminderReposter(
             repository.hasDoseDecisionOnLocalDay(dose.doseTimeId, occurredAt, dose.zoneId)
         }.forEach { missed ->
             notifications.showReminder(
-                medicationId = missed.dose.medicationId,
-                doseTimeId = missed.dose.doseTimeId,
-                scheduledFor = missed.scheduledFor.toEpochMilli(),
+                occurrence = missed.dose.occurrenceAt(missed.scheduledFor),
                 alias = missed.dose.medicationAlias,
                 dosage = missed.dose.dosageText,
             )
