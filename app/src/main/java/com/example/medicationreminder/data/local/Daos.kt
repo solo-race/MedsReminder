@@ -54,6 +54,9 @@ interface DoseTimeDao {
     @Query("SELECT * FROM dose_times")
     fun observeAll(): Flow<List<DoseTimeEntity>>
 
+    @Query("SELECT * FROM dose_times WHERE id = :id")
+    suspend fun getById(id: Long): DoseTimeEntity?
+
     @Query("SELECT * FROM dose_times WHERE scheduleId = :scheduleId")
     suspend fun getForSchedule(scheduleId: Long): List<DoseTimeEntity>
 
