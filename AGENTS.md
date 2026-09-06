@@ -8,6 +8,18 @@ Single-module Kotlin/Compose Android app under `app/`: Room persistence, private
 
 `local.properties` is machine-specific (SDK path) and intentionally ignored, as are generated `.gradle/`, `.kotlin/`, `build/`, and `app/build/` outputs.
 
+## Documentation entry points
+
+Use these repository documents as the default context before implementation or review work:
+
+1. `docs/review/README.md` — canonical review archive index. **Always follow and read its `Latest review` pointer first** before making architecture or feature implementation decisions. New reviews are archived as timestamp-locked documents; do not overwrite or retitle older reviews.
+2. `docs/architecture/README.md` — architecture index and cross-layer contracts. It also links back to the canonical review archive and records the default reading order.
+3. `docs/feature-plans/` — feature-specific implementation plans. Read the relevant plan after the latest review and architecture index; if a newer review corrects an older plan assumption, update the plan before implementation proceeds.
+4. `docs/memory.md` — verification evidence, project history, device setup notes, and backlog.
+5. `docs/operations.md` — command-environment problems, Gradle/adb operational rules, and workstation-specific fixes.
+
+For review work, create a new file under `docs/review/` using the review time in Singapore time (`Asia/Singapore`) in both filename and H1 title, then update `docs/review/README.md` so its `Latest review` pointer references that new document in the same change.
+
 ## Tooling (verified on this workstation)
 
 Android Studio `D:\AndroidStudio` (bundled JDK `D:\AndroidStudio\jbr`), Android SDK `%LOCALAPPDATA%\Android\Sdk` (Platform 37.0), Gradle `9.5.0`, AGP `9.3.0`, Kotlin `2.3.10`, KSP `2.3.11`.
@@ -23,6 +35,7 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-chinese-language` | `b594fc2` | Strings + Settings selector in master via v0.005; notification copy localization, tests, and device verification pending. |
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
 | `codex/feature-notification-guidance` | `40afac8` | Merged into master (`40afac8`, v0.018). |
+| `codex/feature-medication-detail-dose-actions` | documentation setup on top of `ebafa559` | Active; follow `docs/review/README.md`, architecture index, and feature plan before implementation. |
 
 ## Verification
 
