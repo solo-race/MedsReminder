@@ -20,14 +20,11 @@ class ReminderActionReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                container.repository.recordDose(
-                    occurrence.medicationId,
-                    occurrence.doseTimeId,
-                    occurrence.scheduledFor,
-                    status,
-                )
+                val recorded = container.repository.recordDoseIfOccurrenceActionable(occurrence, status)
                 container.notifications.cancelReminder(occurrence.doseTimeId)
-                container.scheduler.scheduleAll()
+                if (recorded) {
+                    container.scheduler.scheduleAll()
+                }
             } finally {
                 pendingResult.finish()
             }
@@ -42,18 +39,27 @@ class ReminderActionReceiver : BroadcastReceiver() {
         const val EXTRA_ZONE_ID = "zone_id"
         const val EXTRA_STATUS = "status"
 
-        fun Intent.toDoseOccurrenceOrNull(): DoseOccurrence? {
-            val medicationId = getLongExtra(EXTRA_MEDICATION_ID, -1)
-            val doseTimeId = getLongExtra(EXTRA_DOSE_TIME_ID, -1)
-            val scheduledFor = getLongExtra(EXTRA_SCHEDULED_FOR, -1)
-            val zoneId = runCatching { ZoneId.of(getStringExtra(EXTRA_ZONE_ID).orEmpty()) }.getOrNull()
-            if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0 || zoneId == null) return null
+        internal fun doseOccurrenceOrNull(
+            medicationId: Long,
+            doseTimeId: Long,
+            scheduledForEpochMillis: Long,
+            zoneIdValue: String?,
+        ): DoseOccurrence? {
+            val zoneId = runCatching { ZoneId.of(zoneIdValue.orEmpty()) }.getOrNull()
+            if (medicationId < 0 || doseTimeId < 0 || scheduledForEpochMillis < 0 || zoneId == null) return null
             return DoseOccurrence(
                 medicationId = medicationId,
                 doseTimeId = doseTimeId,
-                scheduledFor = Instant.ofEpochMilli(scheduledFor),
+                scheduledFor = Instant.ofEpochMilli(scheduledForEpochMillis),
                 zoneId = zoneId,
             )
         }
+
+        fun Intent.toDoseOccurrenceOrNull(): DoseOccurrence? = doseOccurrenceOrNull(
+            medicationId = getLongExtra(EXTRA_MEDICATION_ID, -1),
+            doseTimeId = getLongExtra(EXTRA_DOSE_TIME_ID, -1),
+            scheduledForEpochMillis = getLongExtra(EXTRA_SCHEDULED_FOR, -1),
+            zoneIdValue = getStringExtra(EXTRA_ZONE_ID),
+        )
     }
 }
