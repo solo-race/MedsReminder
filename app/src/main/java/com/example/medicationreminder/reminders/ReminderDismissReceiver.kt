@@ -24,22 +24,28 @@ class ReminderDismissReceiver : BroadcastReceiver() {
             try {
                 val container = context.appContainer
                 val dose = container.repository.activeScheduledDoses()
-                    .firstOrNull {
-                        it.medicationId == occurrence.medicationId &&
-                            it.doseTimeId == occurrence.doseTimeId &&
-                            it.zoneId == occurrence.zoneId
-                    }
+                    .firstOrNull { it.matchesOccurrence(occurrence) }
                     ?: return@launch
-                if (container.repository.hasDoseDecisionOnLocalDay(
-                        occurrence.doseTimeId,
-                        occurrence.scheduledFor,
-                        occurrence.zoneId,
-                    )
-                ) return@launch
-                container.notifications.showReminder(
+                deliverReminderIfUndecided(
+                    dose = dose,
                     occurrence = occurrence,
-                    alias = dose.medicationAlias,
-                    dosage = dose.dosageText,
+                    isDecided = {
+                        container.repository.hasDoseDecisionOnLocalDay(
+                            occurrence.doseTimeId,
+                            occurrence.scheduledFor,
+                            occurrence.zoneId,
+                        )
+                    },
+                    showReminder = {
+                        container.notifications.showReminder(
+                            occurrence = occurrence,
+                            alias = dose.medicationAlias,
+                            dosage = dose.dosageText,
+                        )
+                    },
+                    cancelVisibleReminder = {
+                        container.notifications.cancelReminder(occurrence.doseTimeId)
+                    },
                 )
             } finally {
                 pendingResult.finish()

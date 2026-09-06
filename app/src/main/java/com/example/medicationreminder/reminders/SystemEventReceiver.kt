@@ -27,13 +27,28 @@ class SystemEventReceiver : BroadcastReceiver() {
                             dose.zoneId,
                             now,
                         ) ?: return@forEach
-                        if (!container.repository.hasDoseDecisionOnLocalDay(dose.doseTimeId, occurredAt, dose.zoneId)) {
-                            container.notifications.showReminder(
-                                occurrence = dose.occurrenceAt(occurredAt),
-                                alias = dose.medicationAlias,
-                                dosage = dose.dosageText,
-                            )
-                        }
+                        val occurrence = dose.occurrenceAt(occurredAt)
+                        deliverReminderIfUndecided(
+                            dose = dose,
+                            occurrence = occurrence,
+                            isDecided = {
+                                container.repository.hasDoseDecisionOnLocalDay(
+                                    occurrence.doseTimeId,
+                                    occurrence.scheduledFor,
+                                    occurrence.zoneId,
+                                )
+                            },
+                            showReminder = {
+                                container.notifications.showReminder(
+                                    occurrence = occurrence,
+                                    alias = dose.medicationAlias,
+                                    dosage = dose.dosageText,
+                                )
+                            },
+                            cancelVisibleReminder = {
+                                container.notifications.cancelReminder(occurrence.doseTimeId)
+                            },
+                        )
                     }
                 }
                 if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
