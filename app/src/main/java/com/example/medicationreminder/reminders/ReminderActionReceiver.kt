@@ -19,12 +19,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val container = context.appContainer
-                val recorded = container.repository.recordDoseIfOccurrenceActionable(occurrence, status)
-                container.notifications.cancelReminder(occurrence.doseTimeId)
-                if (recorded) {
-                    container.scheduler.scheduleAll()
-                }
+                context.appContainer.doseDecisionUseCase(occurrence, status)
             } finally {
                 pendingResult.finish()
             }

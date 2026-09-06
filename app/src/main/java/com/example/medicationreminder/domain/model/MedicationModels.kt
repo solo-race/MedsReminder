@@ -70,6 +70,12 @@ data class DoseOccurrence(
     val zoneId: ZoneId,
 )
 
+sealed interface DoseDecisionResult {
+    data class Recorded(val status: DoseStatus) : DoseDecisionResult
+    data class AlreadyDecided(val status: DoseStatus) : DoseDecisionResult
+    data object StaleOccurrence : DoseDecisionResult
+}
+
 data class ScheduledDose(
     val medicationId: Long,
     val medicationName: String,
@@ -88,4 +94,3 @@ data class ScheduledDose(
         zoneId = zoneId,
     )
 }
-
