@@ -22,11 +22,15 @@ class ReminderScheduler(
 
     fun schedule(dose: ScheduledDose) {
         val triggerAt = NextDoseCalculator.nextOccurrence(dose) ?: return
+        val occurrence = dose.occurrenceAt(triggerAt)
         val showIntent = PendingIntent.getActivity(
             context,
             requestCode(dose.doseTimeId, SHOW_INTENT_OFFSET),
             Intent(context, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_MEDICATION_ID, dose.medicationId),
+                .putExtra(MainActivity.EXTRA_MEDICATION_ID, occurrence.medicationId)
+                .putExtra(MainActivity.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
+                .putExtra(MainActivity.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
+                .putExtra(MainActivity.EXTRA_ZONE_ID, occurrence.zoneId.id),
             PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag(),
         )
         // setAlarmClock dispatches at the exact millisecond even under OEM alarm batching and Doze,
@@ -61,7 +65,8 @@ class ReminderScheduler(
                 .setAction("${ReminderReceiver.ACTION_REMIND}.${dose.doseTimeId}")
                 .putExtra(ReminderReceiver.EXTRA_MEDICATION_ID, dose.medicationId)
                 .putExtra(ReminderReceiver.EXTRA_DOSE_TIME_ID, dose.doseTimeId)
-                .putExtra(ReminderReceiver.EXTRA_SCHEDULED_FOR, scheduledFor),
+                .putExtra(ReminderReceiver.EXTRA_SCHEDULED_FOR, scheduledFor)
+                .putExtra(ReminderReceiver.EXTRA_ZONE_ID, dose.zoneId.id),
             PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag(),
         )
 
