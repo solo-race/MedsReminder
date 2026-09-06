@@ -3,8 +3,10 @@ package com.example.medicationreminder.reminders
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import java.time.Instant
 import com.example.medicationreminder.appContainer
+import com.example.medicationreminder.domain.model.DoseOccurrence
+import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -14,19 +16,28 @@ class ReminderDismissReceiver : BroadcastReceiver() {
         val medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
         val doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1)
         val scheduledFor = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1)
-        if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0) return
+        val zoneId = runCatching { ZoneId.of(intent.getStringExtra(EXTRA_ZONE_ID).orEmpty()) }.getOrNull()
+        if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0 || zoneId == null) return
+        val occurrence = DoseOccurrence(medicationId, doseTimeId, Instant.ofEpochMilli(scheduledFor), zoneId)
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
                 val dose = container.repository.activeScheduledDoses()
-                    .firstOrNull { it.medicationId == medicationId && it.doseTimeId == doseTimeId }
+                    .firstOrNull {
+                        it.medicationId == occurrence.medicationId &&
+                            it.doseTimeId == occurrence.doseTimeId &&
+                            it.zoneId == occurrence.zoneId
+                    }
                     ?: return@launch
-                if (container.repository.hasDoseDecisionOnLocalDay(doseTimeId, Instant.ofEpochMilli(scheduledFor), dose.zoneId)) return@launch
+                if (container.repository.hasDoseDecisionOnLocalDay(
+                        occurrence.doseTimeId,
+                        occurrence.scheduledFor,
+                        occurrence.zoneId,
+                    )
+                ) return@launch
                 container.notifications.showReminder(
-                    medicationId = medicationId,
-                    doseTimeId = doseTimeId,
-                    scheduledFor = scheduledFor,
+                    occurrence = occurrence,
                     alias = dose.medicationAlias,
                     dosage = dose.dosageText,
                 )
@@ -41,5 +52,6 @@ class ReminderDismissReceiver : BroadcastReceiver() {
         const val EXTRA_MEDICATION_ID = "medication_id"
         const val EXTRA_DOSE_TIME_ID = "dose_time_id"
         const val EXTRA_SCHEDULED_FOR = "scheduled_for"
+        const val EXTRA_ZONE_ID = "zone_id"
     }
 }
