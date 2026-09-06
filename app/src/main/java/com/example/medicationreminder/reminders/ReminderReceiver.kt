@@ -30,7 +30,8 @@ class ReminderReceiver : BroadcastReceiver() {
                         alias = currentDose.medicationAlias,
                         dosage = currentDose.dosageText,
                     )
-                    container.scheduler.scheduleFromFiredOccurrence(currentDose, occurrence.scheduledFor)
+                    // One alarm per dose is kept in the system. Phase 4 will make this reschedule path decision-aware.
+                    container.scheduler.schedule(currentDose)
                 }
             } finally {
                 pendingResult.finish()
