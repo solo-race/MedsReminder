@@ -16,23 +16,15 @@ class SystemEventReceiver : BroadcastReceiver() {
             try {
                 val container = context.appContainer
                 container.scheduler.scheduleAll()
-                if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+                if (intent.action == Intent.ACTION_BOOT_COMPLETED || 
+                intent.action == Intent.ACTION_MY_PACKAGE_REPLACED
+                ) {
                     container.missedReminderReposter.repostUndecidedOverdue()
                 }
+
                 if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) {
                     val currentZone = ZoneId.systemDefault().id
-                    val previousZone = container.preferences.updateAndGetPreviousDeviceZone(currentZone)
-                    if (previousZone != null && previousZone != currentZone) {
-                        // The notifications only need a schedule id and medicine name; collect one value safely.
-                        val manualSchedules = container.repository.manualSchedules()
-                        val medications = container.repository.activeScheduledDoses()
-                            .associateBy { it.scheduleId }
-                        manualSchedules.forEach { schedule ->
-                            medications[schedule.id]?.let { dose ->
-                                container.notifications.showTravelQuestion(schedule.id, dose.medicationName)
-                            }
-                        }
-                    }
+                    container.repository.updateDeviceZone(currentZone)
                 }
             } finally {
                 pendingResult.finish()
