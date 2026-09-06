@@ -12,6 +12,22 @@ import com.example.medicationreminder.ui.theme.MedicationReminderTheme
 import java.time.Instant
 import java.time.ZoneId
 
+internal fun navigationDoseOccurrenceOrNull(
+    medicationId: Long,
+    doseTimeId: Long,
+    scheduledForEpochMillis: Long,
+    zoneIdValue: String?,
+): DoseOccurrence? {
+    val zoneId = runCatching { ZoneId.of(zoneIdValue.orEmpty()) }.getOrNull()
+    if (medicationId < 0 || doseTimeId < 0 || scheduledForEpochMillis < 0 || zoneId == null) return null
+    return DoseOccurrence(
+        medicationId = medicationId,
+        doseTimeId = doseTimeId,
+        scheduledFor = Instant.ofEpochMilli(scheduledForEpochMillis),
+        zoneId = zoneId,
+    )
+}
+
 class MainActivity : ComponentActivity() {
     private val viewModel: MedicationViewModel by viewModels()
 
@@ -31,14 +47,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun intentDoseOccurrence(): DoseOccurrence? {
-        val medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
-        val doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1)
-        val scheduledFor = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1)
-        val zoneId = runCatching { ZoneId.of(intent.getStringExtra(EXTRA_ZONE_ID).orEmpty()) }.getOrNull()
-        if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0 || zoneId == null) return null
-        return DoseOccurrence(medicationId, doseTimeId, Instant.ofEpochMilli(scheduledFor), zoneId)
-    }
+    private fun intentDoseOccurrence(): DoseOccurrence? = navigationDoseOccurrenceOrNull(
+        medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1),
+        doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1),
+        scheduledForEpochMillis = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1),
+        zoneIdValue = intent.getStringExtra(EXTRA_ZONE_ID),
+    )
 
     companion object {
         const val EXTRA_MEDICATION_ID = "open_medication_id"
