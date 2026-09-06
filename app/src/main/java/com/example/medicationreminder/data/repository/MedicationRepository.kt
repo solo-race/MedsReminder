@@ -42,6 +42,52 @@ interface MedicationRepository {
 
 data class SaveMedicationResult(val medicationId: Long, val replacedPhotoPath: String?)
 
+internal data class DoseTimeReconciliation(
+    val toInsert: List<DoseTimeEntity>,
+    val toUpdate: List<DoseTimeEntity>,
+    val idsToDelete: List<Long>,
+)
+
+internal fun reconcileDoseTimes(
+    scheduleId: Long,
+    existing: List<DoseTimeEntity>,
+    desiredMinutes: List<Int>,
+): DoseTimeReconciliation {
+    val desired = desiredMinutes.distinct().sorted()
+    val existingByMinute = existing.groupBy { it.minuteOfDay }
+    val retainedIds = mutableSetOf<Long>()
+    val toInsert = mutableListOf<DoseTimeEntity>()
+    val toUpdate = mutableListOf<DoseTimeEntity>()
+
+    desired.forEach { minuteOfDay ->
+        val retained = existingByMinute[minuteOfDay].orEmpty().minByOrNull { it.id }
+        if (retained == null) {
+            toInsert += DoseTimeEntity(
+                scheduleId = scheduleId,
+                minuteOfDay = minuteOfDay,
+                enabled = true,
+            )
+        } else {
+            retainedIds += retained.id
+            if (!retained.enabled) {
+                toUpdate += retained.copy(enabled = true)
+            }
+        }
+    }
+
+    val idsToDelete = existing.asSequence()
+        .filter { it.id !in retainedIds }
+        .map { it.id }
+        .sorted()
+        .toList()
+
+    return DoseTimeReconciliation(
+        toInsert = toInsert,
+        toUpdate = toUpdate,
+        idsToDelete = idsToDelete,
+    )
+}
+
 class RoomMedicationRepository(
     private val database: MedicationDatabase,
 ) : MedicationRepository {
@@ -136,12 +182,22 @@ class RoomMedicationRepository(
             )
             existingSchedule.id
         }
-        doseTimeDao.deleteForSchedule(scheduleId)
-        doseTimeDao.insertAll(
-            draft.times.distinct().sorted().map {
-                DoseTimeEntity(scheduleId = scheduleId, minuteOfDay = it.toMinuteOfDay(), enabled = true)
-            },
+
+        val reconciliation = reconcileDoseTimes(
+            scheduleId = scheduleId,
+            existing = doseTimeDao.getForSchedule(scheduleId),
+            desiredMinutes = draft.times.map { it.toMinuteOfDay() },
         )
+        if (reconciliation.idsToDelete.isNotEmpty()) {
+            doseTimeDao.deleteByIds(reconciliation.idsToDelete)
+        }
+        if (reconciliation.toUpdate.isNotEmpty()) {
+            doseTimeDao.updateAll(reconciliation.toUpdate)
+        }
+        if (reconciliation.toInsert.isNotEmpty()) {
+            doseTimeDao.insertAll(reconciliation.toInsert)
+        }
+
         SaveMedicationResult(medicationId, old?.photoPath?.takeIf { it != draft.existingPhotoPath })
     }
 

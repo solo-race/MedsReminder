@@ -60,11 +60,14 @@ interface DoseTimeDao {
     @Query("SELECT * FROM dose_times")
     suspend fun getAll(): List<DoseTimeEntity>
 
-    @Query("DELETE FROM dose_times WHERE scheduleId = :scheduleId")
-    suspend fun deleteForSchedule(scheduleId: Long)
+    @Query("DELETE FROM dose_times WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
 
     @Insert
     suspend fun insertAll(times: List<DoseTimeEntity>)
+
+    @Update
+    suspend fun updateAll(times: List<DoseTimeEntity>)
 }
 
 data class DoseEventRow(
