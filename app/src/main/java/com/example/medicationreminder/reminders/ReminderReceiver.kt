@@ -31,7 +31,8 @@ class ReminderReceiver : BroadcastReceiver() {
                         alias = currentDose.medicationAlias,
                         dosage = currentDose.dosageText,
                     )
-                    container.scheduler.scheduleFromFiredOccurrence(currentDose, occurrence.scheduledFor)
+                    // One alarm per dose is kept in the system. Phase 4 will make this reschedule path decision-aware.
+                    container.scheduler.schedule(currentDose)
                 }
                 // Optional self-heal: restore reminders the system cleared while the process was frozen.
                 if (container.preferences.repostMissedReminders.first()) {
