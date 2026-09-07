@@ -6,7 +6,7 @@ This directory is the canonical archive for repository architecture, feature, im
 
 **Always read the latest review before making architecture or feature implementation decisions.**
 
-Latest review: [`2026-09-08-0128-sgt-phase-5-medication-detail-ui.md`](2026-09-08-0128-sgt-phase-5-medication-detail-ui.md)
+Latest review: [`2026-09-08-0231-sgt-phase-5-medication-detail-ui-corrective.md`](2026-09-08-0231-sgt-phase-5-medication-detail-ui-corrective.md)
 
 The `Latest review` pointer above is authoritative. Every new review must update this pointer in the same change that adds the review document.
 
@@ -24,6 +24,7 @@ The `Latest review` pointer above is authoritative. Every new review must update
 
 | Review time | Scope | Branch / base | Disposition |
 | --- | --- | --- | --- |
+| 2026-09-08 02:31 SGT | Phase 5 — Medication Detail UI corrective implementation Review Gate | `codex/feature-medication-detail-dose-actions` @ `823bb68e` | PASS WITH NON-BLOCKING FINDINGS; Phase 5 gate passed |
 | 2026-09-08 01:28 SGT | Phase 5 — Medication Detail UI implementation Review Gate | `codex/feature-medication-detail-dose-actions` @ `27fd89f2` | CHANGES REQUIRED; Phase 5 gate not passed |
 | 2026-09-07 22:12 SGT | Phase 4 — Decision-aware Scheduling corrective implementation Review Gate | `codex/feature-medication-detail-dose-actions` @ `76820848` | PASS WITH NON-BLOCKING FINDINGS; Phase 4 gate passed |
 | 2026-09-07 08:01 SGT | Phase 4 — Decision-aware Scheduling implementation Review Gate | `codex/feature-medication-detail-dose-actions` @ `5e87d632` (current HEAD `fa745bcf`, docs-only after implementation) | CHANGES REQUIRED; Phase 4 gate not passed |
