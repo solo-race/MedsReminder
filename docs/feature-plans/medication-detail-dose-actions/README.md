@@ -1,6 +1,6 @@
 # Medication Detail + Pre-alarm Dose Decisions
 
-Status: implementation planned; development branch active.
+Status: implementation complete through Phase 6; all phase Review Gates passed on `codex/feature-medication-detail-dose-actions`. Feature branch remains active pending user-controlled merge/release handling and available device smoke.
 
 Branch: `codex/feature-medication-detail-dose-actions`
 
