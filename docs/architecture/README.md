@@ -13,7 +13,7 @@ After the latest review, use this architecture index and then the relevant featu
 | Feature / source | Architecture focus | Implementation plan / entry point | Status |
 | --- | --- | --- | --- |
 | Review archive | Time-locked architecture, implementation, and regression reviews; latest findings override older review assumptions when they conflict | [`../review/README.md`](../review/README.md) — read **Latest review** first | Active / canonical review entry point |
-| Medication Detail + pre-alarm dose decisions | Stable dose-slot identity, explicit occurrence identity, transactional dose decisions, decision-aware AlarmManager scheduling and receiver guards | [`../feature-plans/medication-detail-dose-actions/README.md`](../feature-plans/medication-detail-dose-actions/README.md) | Planned / branch active |
+| Medication Detail + pre-alarm dose decisions | Stable dose-slot identity, explicit occurrence identity, transactional dose decisions, decision-aware AlarmManager scheduling and receiver guards | [`../feature-plans/medication-detail-dose-actions/README.md`](../feature-plans/medication-detail-dose-actions/README.md) | Implemented through Phase 6; all Review Gates passed; feature branch remains active pending user-controlled merge/release handling and available device smoke. |
 
 ## Current feature contract
 
