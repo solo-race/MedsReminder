@@ -11,13 +11,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+internal fun systemEventRequiresReschedule(action: String?): Boolean = action == Intent.ACTION_BOOT_COMPLETED ||
+    action == Intent.ACTION_MY_PACKAGE_REPLACED ||
+    action == Intent.ACTION_TIME_CHANGED ||
+    action == Intent.ACTION_TIMEZONE_CHANGED
+
 class SystemEventReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                container.scheduler.scheduleAll()
+                if (systemEventRequiresReschedule(intent.action)) {
+                    container.scheduler.scheduleAll()
+                }
                 if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
                     val now = Instant.now()
                     container.repository.activeScheduledDoses().forEach { dose ->
