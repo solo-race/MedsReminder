@@ -7,8 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.medicationreminder.MedicationReminderApplication
 import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
+import com.example.medicationreminder.domain.model.DoseDecisionResult
+import com.example.medicationreminder.domain.model.DoseOccurrence
+import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
+import com.example.medicationreminder.reminders.nextUndecidedOccurrence
+import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +74,43 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()
 
+    suspend fun nextActionableOccurrence(medicationId: Long, after: Instant): DoseOccurrence? = withContext(Dispatchers.IO) {
+        container.repository.activeScheduledDoses()
+            .asSequence()
+            .filter { it.medicationId == medicationId }
+            .mapNotNull { dose ->
+                nextUndecidedOccurrence(dose, after) { candidate ->
+                    container.repository.hasDoseDecisionOnLocalDay(
+                        candidate.doseTimeId,
+                        candidate.scheduledFor,
+                        candidate.zoneId,
+                    )
+                }
+            }
+            .minByOrNull { it.scheduledFor }
+    }
+
+    suspend fun isDoseDecided(occurrence: DoseOccurrence): Boolean = withContext(Dispatchers.IO) {
+        container.repository.hasDoseDecisionOnLocalDay(
+            occurrence.doseTimeId,
+            occurrence.scheduledFor,
+            occurrence.zoneId,
+        )
+    }
+
+    fun decideDose(
+        occurrence: DoseOccurrence,
+        status: DoseStatus,
+        onResult: (DoseDecisionResult) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                container.doseDecisionUseCase(occurrence, status)
+            }
+            onResult(result)
+        }
+    }
+
     fun saveMedication(
         draft: MedicationDraft,
         previousPlan: MedicationPlan?,
@@ -107,7 +149,6 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                 onSaved()
             }.onFailure {
                 _error.value = R.string.error_save_medication
-                // Re-establish previous alarms if saving failed after cancelling an edited schedule.
                 viewModelScope.launch(Dispatchers.IO) { container.scheduler.scheduleAll() }
             }
         }
