@@ -52,7 +52,8 @@ class PersistedDecisionRescheduleTest {
             zoneId = zone,
         )
 
-        openDatabase().use { database ->
+        val database = openDatabase()
+        try {
             database.medicationDao().insert(
                 MedicationEntity(
                     id = 10,
@@ -92,9 +93,12 @@ class PersistedDecisionRescheduleTest {
                 DoseDecisionResult.Recorded(DoseStatus.TAKEN),
                 repository.decideDose(occurrence, DoseStatus.TAKEN),
             )
+        } finally {
+            database.close()
         }
 
-        openDatabase().use { reopened ->
+        val reopened = openDatabase()
+        try {
             val repository = RoomMedicationRepository(reopened)
             reopened.medicationDao().update(
                 MedicationEntity(
@@ -134,6 +138,8 @@ class PersistedDecisionRescheduleTest {
 
             assertEquals(Instant.parse("2026-09-08T08:00:00Z"), rebuilt?.scheduledFor)
             assertEquals(30L, rebuilt?.doseTimeId)
+        } finally {
+            reopened.close()
         }
     }
 
