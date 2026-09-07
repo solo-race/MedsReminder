@@ -1,5 +1,6 @@
 package com.example.medicationreminder.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -61,6 +62,7 @@ data class DoseTimeEntity(
     indices = [
         Index(value = ["scheduledForEpochMillis"]),
         Index(value = ["doseTimeId", "scheduledForEpochMillis"], unique = true),
+        Index(value = ["doseTimeId", "scheduledLocalEpochDay"]),
     ],
 )
 data class DoseEventEntity(
@@ -68,6 +70,7 @@ data class DoseEventEntity(
     val medicationId: Long,
     val doseTimeId: Long,
     val scheduledForEpochMillis: Long,
+    @ColumnInfo(defaultValue = "0") val scheduledLocalEpochDay: Long,
     val status: DoseStatus,
     val actionedAtEpochMillis: Long,
 )

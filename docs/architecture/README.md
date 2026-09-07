@@ -17,6 +17,6 @@ After the latest review, use this architecture index and then the relevant featu
 
 ## Current feature contract
 
-The medication-detail feature deliberately keeps the existing Room schema and editor architecture. Its correctness boundary is the persisted dose decision: AlarmManager state may be cancelled/rescheduled, but reminder delivery must always consult persisted decision state before displaying a reminder.
+The medication-detail feature keeps the existing editor architecture and uses persisted dose decisions as the correctness boundary: AlarmManager state may be cancelled/rescheduled, but reminder delivery must always consult persisted decision state before displaying a reminder. The Phase 4 review established that the local-day decision identity itself must also be persisted rather than reconstructed from the current schedule zone. A minimal Room v2→v3 migration therefore adds a stable logical local-day key to `dose_events`; this is a correctness migration, not an unrelated schema expansion.
 
 For current findings and corrections to assumptions, read the latest archived review first. For implementation sequencing, invariants, race handling, and verification scenarios, then use the linked feature plan as the working source of truth until the feature is merged and the stable architecture is folded into permanent architecture documentation.

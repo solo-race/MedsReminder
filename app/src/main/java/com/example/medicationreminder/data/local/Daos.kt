@@ -107,18 +107,18 @@ interface DoseEventDao {
         """
         SELECT * FROM dose_events
         WHERE doseTimeId = :doseTimeId
-          AND scheduledForEpochMillis BETWEEN :fromInclusive AND :toInclusive
+          AND scheduledLocalEpochDay = :scheduledLocalEpochDay
         ORDER BY actionedAtEpochMillis ASC, id ASC
         LIMIT 1
         """
     )
-    suspend fun firstForOnLocalDay(doseTimeId: Long, fromInclusive: Long, toInclusive: Long): DoseEventEntity?
+    suspend fun firstForLogicalDay(doseTimeId: Long, scheduledLocalEpochDay: Long): DoseEventEntity?
 
     @Query(
         """
         SELECT EXISTS(SELECT 1 FROM dose_events
-        WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis BETWEEN :fromInclusive AND :toInclusive)
+        WHERE doseTimeId = :doseTimeId AND scheduledLocalEpochDay = :scheduledLocalEpochDay)
         """
     )
-    suspend fun existsForOnLocalDay(doseTimeId: Long, fromInclusive: Long, toInclusive: Long): Boolean
+    suspend fun existsForLogicalDay(doseTimeId: Long, scheduledLocalEpochDay: Long): Boolean
 }

@@ -264,13 +264,13 @@ internal class RoomMedicationRepository(
                 return@withTransaction DoseDecisionResult.StaleOccurrence
             }
 
-            val day = occurrence.scheduledFor.atZone(occurrence.zoneId).toLocalDate()
-            val fromInclusive = day.atStartOfDay(occurrence.zoneId).toInstant().toEpochMilli()
-            val toInclusive = day.plusDays(1).atStartOfDay(occurrence.zoneId).toInstant().toEpochMilli() - 1
-            val existing = doseEventDao.firstForOnLocalDay(
+            val scheduledLocalEpochDay = occurrence.scheduledFor
+                .atZone(occurrence.zoneId)
+                .toLocalDate()
+                .toEpochDay()
+            val existing = doseEventDao.firstForLogicalDay(
                 occurrence.doseTimeId,
-                fromInclusive,
-                toInclusive,
+                scheduledLocalEpochDay,
             )
             if (existing != null) {
                 return@withTransaction DoseDecisionResult.AlreadyDecided(existing.status)
@@ -282,6 +282,7 @@ internal class RoomMedicationRepository(
                     medicationId = occurrence.medicationId,
                     doseTimeId = occurrence.doseTimeId,
                     scheduledForEpochMillis = occurrence.scheduledFor.toEpochMilli(),
+                    scheduledLocalEpochDay = scheduledLocalEpochDay,
                     status = status,
                     actionedAtEpochMillis = now,
                 ),
@@ -291,10 +292,8 @@ internal class RoomMedicationRepository(
         }
 
     override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
-        val day = scheduledFor.atZone(zoneId).toLocalDate()
-        val from = day.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val to = day.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1
-        return doseEventDao.existsForOnLocalDay(doseTimeId, from, to)
+        val scheduledLocalEpochDay = scheduledFor.atZone(zoneId).toLocalDate().toEpochDay()
+        return doseEventDao.existsForLogicalDay(doseTimeId, scheduledLocalEpochDay)
     }
 
     override suspend fun setScheduleToDeviceTime(scheduleId: Long) {
