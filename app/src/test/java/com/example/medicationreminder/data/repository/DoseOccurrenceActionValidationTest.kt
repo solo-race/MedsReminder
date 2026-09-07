@@ -113,4 +113,27 @@ class DoseOccurrenceActionValidationTest {
 
         assertTrue(isOccurrenceActionable(medication, sundaySchedule, gapDoseTime, gapOccurrence))
     }
+
+    @Test
+    fun dstOverlapAcceptsSchedulerInstantAndRejectsSecondOffsetDuplicate() {
+        val zone = ZoneId.of("Europe/Berlin")
+        val date = LocalDate.of(2026, 10, 25)
+        val wallClock = LocalTime.of(2, 30)
+        val schedulerZonedDateTime = date.atTime(wallClock).atZone(zone)
+        val sundaySchedule = schedule.copy(
+            weekdaysMask = 1 shl 6,
+            manualZoneId = zone.id,
+        )
+        val overlapDoseTime = doseTime.copy(minuteOfDay = 2 * 60 + 30)
+        val schedulerOccurrence = occurrence.copy(
+            scheduledFor = schedulerZonedDateTime.toInstant(),
+            zoneId = zone,
+        )
+        val secondOffsetOccurrence = schedulerOccurrence.copy(
+            scheduledFor = schedulerZonedDateTime.withLaterOffsetAtOverlap().toInstant(),
+        )
+
+        assertTrue(isOccurrenceActionable(medication, sundaySchedule, overlapDoseTime, schedulerOccurrence))
+        assertFalse(isOccurrenceActionable(medication, sundaySchedule, overlapDoseTime, secondOffsetOccurrence))
+    }
 }
