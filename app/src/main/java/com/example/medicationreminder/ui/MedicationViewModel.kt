@@ -75,19 +75,21 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()
 
     suspend fun nextActionableOccurrence(medicationId: Long, after: Instant): DoseOccurrence? = withContext(Dispatchers.IO) {
-        container.repository.activeScheduledDoses()
-            .asSequence()
-            .filter { it.medicationId == medicationId }
-            .mapNotNull { dose ->
-                nextUndecidedOccurrence(dose, after) { candidate ->
-                    container.repository.hasDoseDecisionOnLocalDay(
-                        candidate.doseTimeId,
-                        candidate.scheduledFor,
-                        candidate.zoneId,
-                    )
-                }
+        var earliest: DoseOccurrence? = null
+        for (dose in container.repository.activeScheduledDoses()) {
+            if (dose.medicationId != medicationId) continue
+            val occurrence = nextUndecidedOccurrence(dose, after) { candidate ->
+                container.repository.hasDoseDecisionOnLocalDay(
+                    candidate.doseTimeId,
+                    candidate.scheduledFor,
+                    candidate.zoneId,
+                )
+            } ?: continue
+            if (earliest == null || occurrence.scheduledFor < earliest.scheduledFor) {
+                earliest = occurrence
             }
-            .minByOrNull { it.scheduledFor }
+        }
+        earliest
     }
 
     suspend fun isDoseDecided(occurrence: DoseOccurrence): Boolean = withContext(Dispatchers.IO) {
