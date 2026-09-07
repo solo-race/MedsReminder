@@ -56,6 +56,16 @@ internal data class DetailDoseState(
     val decidedStatus: DoseStatus? = null,
 )
 
+internal data class DetailDoseStateKey(
+    val plan: MedicationPlan?,
+    val explicitOccurrence: DoseOccurrence?,
+)
+
+internal fun detailDoseStateKey(
+    plan: MedicationPlan?,
+    explicitOccurrence: DoseOccurrence?,
+): DetailDoseStateKey = DetailDoseStateKey(plan, explicitOccurrence)
+
 internal fun preferredDetailOccurrence(
     explicitOccurrence: DoseOccurrence?,
     upcomingOccurrence: DoseOccurrence?,
@@ -99,9 +109,10 @@ internal fun MedicationDetailScreen(
             )
         }
     }
-    var state by remember(plan?.medication?.id, explicitOccurrence) { mutableStateOf<DetailDoseState?>(null) }
+    val stateKey = detailDoseStateKey(plan, explicitOccurrence)
+    var state by remember(stateKey) { mutableStateOf<DetailDoseState?>(null) }
     LaunchedEffect(initialState) {
-        if (state == null && initialState != null) state = initialState
+        if (initialState != null) state = initialState
     }
 
     Scaffold(
