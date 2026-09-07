@@ -92,6 +92,7 @@ import com.example.medicationreminder.MainActivity
 import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
+import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.TimeZoneMode
@@ -110,8 +111,10 @@ private object Routes {
     const val HOME = "home"
     const val HISTORY = "history"
     const val SETTINGS = "settings"
+    const val DETAIL = "medication/{medicationId}"
     const val EDIT_NEW = "edit/new"
     const val EDIT = "edit/{medicationId}"
+    fun detail(id: Long) = "medication/$id"
     fun edit(id: Long) = "edit/$id"
 }
 
@@ -138,10 +141,6 @@ private fun Context.withAppLanguage(language: AppLanguage): Context {
     val configuration = Configuration(resources.configuration)
     configuration.setLocale(Locale.forLanguageTag(language.languageTag))
     val localizedResources = createConfigurationContext(configuration).resources
-    // Wrap the Activity, not the configuration context: activity-bound calls resolve
-    // through the context chain (dialog window tokens via getSystemService(WINDOW_SERVICE),
-    // startActivity, owner lookups like LocalActivityResultRegistryOwner). Only Resources
-    // need localizing for stringResource / LocalConfiguration.
     return object : ContextWrapper(this) {
         override fun getResources(): android.content.res.Resources = localizedResources
     }
@@ -156,10 +155,12 @@ private fun MedicationAppContent(
     val navController = rememberNavController()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val notificationOccurrence = LocalNotificationDoseOccurrence.current
     val error by viewModel.error.collectAsStateWithLifecycle()
     val errorMessage = error?.let { stringResource(it) }
     val snackbarHost = remember { SnackbarHostState() }
     var openedNotificationTarget by remember { mutableStateOf(false) }
+    var detailOccurrence by remember(notificationOccurrence) { mutableStateOf<DoseOccurrence?>(notificationOccurrence) }
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -167,10 +168,11 @@ private fun MedicationAppContent(
             viewModel.clearError()
         }
     }
-    LaunchedEffect(notificationMedicationId, plans) {
-        if (!openedNotificationTarget && notificationMedicationId >= 0 && plans.any { it.medication.id == notificationMedicationId }) {
+    LaunchedEffect(notificationMedicationId, notificationOccurrence) {
+        if (!openedNotificationTarget && notificationMedicationId >= 0) {
             openedNotificationTarget = true
-            navController.navigate(Routes.edit(notificationMedicationId))
+            detailOccurrence = notificationOccurrence
+            navController.navigate(Routes.detail(notificationMedicationId))
         }
     }
 
@@ -218,7 +220,14 @@ private fun MedicationAppContent(
                     ) { Text(stringResource(R.string.add_medication)) }
                 },
             ) { padding ->
-                HomeScreen(plans, Modifier.padding(padding), onEdit = { navController.navigate(Routes.edit(it)) })
+                HomeScreen(
+                    plans = plans,
+                    modifier = Modifier.padding(padding),
+                    onOpenDetail = { medicationId ->
+                        detailOccurrence = null
+                        navController.navigate(Routes.detail(medicationId))
+                    },
+                )
             }
         }
         composable(Routes.HISTORY) {
@@ -240,6 +249,19 @@ private fun MedicationAppContent(
                     onLanguageSelected = viewModel::setLanguage,
                 )
             }
+        }
+        composable(
+            route = Routes.DETAIL,
+            arguments = listOf(navArgument("medicationId") { type = NavType.LongType }),
+        ) { entry ->
+            val id = entry.arguments?.getLong("medicationId") ?: return@composable
+            MedicationDetailScreen(
+                plan = plans.firstOrNull { it.medication.id == id },
+                explicitOccurrence = detailOccurrence?.takeIf { it.medicationId == id },
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onEdit = { navController.navigate(Routes.edit(it)) },
+            )
         }
         composable(Routes.EDIT_NEW) {
             EditMedicationScreen(
@@ -308,7 +330,7 @@ private fun MainScaffold(
 }
 
 @Composable
-private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifier, onEdit: (Long) -> Unit) {
+private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifier, onOpenDetail: (Long) -> Unit) {
     val now by minuteTicker()
     val ordered = remember(plans, now) {
         plans.sortedBy { plan ->
@@ -336,20 +358,20 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
                 Text(stringResource(R.string.active_medication_schedule), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(ordered, key = { it.medication.id }) { plan ->
-                MedicationCard(plan, now, onEdit = onEdit)
+                MedicationCard(plan, now, onOpenDetail = onOpenDetail)
             }
         }
     }
 }
 
 @Composable
-private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) -> Unit) {
+private fun MedicationCard(plan: MedicationPlan, now: Instant, onOpenDetail: (Long) -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
     val next = plan.times.mapNotNull { time ->
         NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
     }.minOrNull()
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onEdit(plan.medication.id) },
+        modifier = Modifier.fillMaxWidth().clickable { onOpenDetail(plan.medication.id) },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
