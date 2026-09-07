@@ -42,14 +42,15 @@ class PersistedDecisionRescheduleTest {
     }
 
     @Test
-    fun earlyDecisionSurvivesDatabaseReopenAndRebuildSkipsOriginalOccurrence() = runBlocking {
-        val zone = ZoneId.of("UTC")
+    fun earlyDecisionSurvivesDatabaseReopenZoneChangeAndRebuildSkipsOriginalLogicalDay() = runBlocking {
+        val originalZone = ZoneId.of("UTC")
+        val rebuiltZone = ZoneId.of("Pacific/Kiritimati")
         val scheduledFor = Instant.parse("2026-09-07T08:00:00Z")
         val occurrence = DoseOccurrence(
             medicationId = 10,
             doseTimeId = 30,
             scheduledFor = scheduledFor,
-            zoneId = zone,
+            zoneId = originalZone,
         )
 
         val database = openDatabase()
@@ -74,7 +75,7 @@ class PersistedDecisionRescheduleTest {
                         mask or (1 shl (day.value - 1))
                     },
                     timeZoneMode = TimeZoneMode.MANUAL,
-                    manualZoneId = zone.id,
+                    manualZoneId = originalZone.id,
                 ),
             )
             database.doseTimeDao().insertAll(
@@ -112,6 +113,17 @@ class PersistedDecisionRescheduleTest {
                     updatedAtEpochMillis = 1,
                 ),
             )
+            reopened.scheduleDao().update(
+                MedicationScheduleEntity(
+                    id = 20,
+                    medicationId = 10,
+                    weekdaysMask = DayOfWeek.entries.fold(0) { mask, day ->
+                        mask or (1 shl (day.value - 1))
+                    },
+                    timeZoneMode = TimeZoneMode.MANUAL,
+                    manualZoneId = rebuiltZone.id,
+                ),
+            )
 
             val dose = ScheduledDose(
                 medicationId = 10,
@@ -121,12 +133,12 @@ class PersistedDecisionRescheduleTest {
                 doseTimeId = 30,
                 time = LocalTime.of(8, 0),
                 weekdays = DayOfWeek.entries.toSet(),
-                zoneId = zone,
+                zoneId = rebuiltZone,
                 medicationAlias = null,
             )
             val rebuilt = nextUndecidedOccurrence(
                 dose = dose,
-                after = Instant.parse("2026-09-07T07:45:00Z"),
+                after = Instant.parse("2026-09-06T17:45:00Z"),
                 isDecided = { candidate ->
                     repository.hasDoseDecisionOnLocalDay(
                         candidate.doseTimeId,
@@ -136,8 +148,9 @@ class PersistedDecisionRescheduleTest {
                 },
             )
 
-            assertEquals(Instant.parse("2026-09-08T08:00:00Z"), rebuilt?.scheduledFor)
+            assertEquals(Instant.parse("2026-09-07T18:00:00Z"), rebuilt?.scheduledFor)
             assertEquals(30L, rebuilt?.doseTimeId)
+            assertEquals(rebuiltZone, rebuilt?.zoneId)
         } finally {
             reopened.close()
         }
