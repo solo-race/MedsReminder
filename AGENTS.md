@@ -36,7 +36,7 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
 | `codex/feature-notification-guidance` | `40afac8` | Merged into master (`40afac8`, v0.018). |
 | `codex/feature-repost-missed-reminders` | `4dc52ee` | v0.019: Settings-gated self-heal re-posting; suite + device verified. |
-| `codex/feature-medication-detail-dose-actions` | documentation setup on top of `ebafa559` | Active; follow `docs/review/README.md`, architecture index, and feature plan before implementation. |
+| `codex/feature-medication-detail-dose-actions` | `a78ba10` review-gated checkpoint | Active; Phases 1–6 Review Gates passed. Awaiting user-controlled merge/release handling and available device smoke; do not modify `master`, create/merge PRs, or close the feature without explicit authorization. |
 
 ## Verification
 
