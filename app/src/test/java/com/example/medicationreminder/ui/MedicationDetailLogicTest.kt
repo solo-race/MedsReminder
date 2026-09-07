@@ -11,6 +11,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,6 +49,27 @@ class MedicationDetailLogicTest {
     @Test
     fun matchingOccurrenceIsActionableForCurrentPlan() {
         assertTrue(isOccurrenceCompatibleWithPlan(plan, occurrence("2026-09-07T00:00:00Z")))
+    }
+
+    @Test
+    fun returningFromEditInvalidatesRememberedDoseStateForRelevantPlanChanges() {
+        val explicit = occurrence("2026-09-07T00:00:00Z")
+        val originalKey = detailDoseStateKey(plan, explicit)
+        val editedPlans = listOf(
+            plan.copy(medication = plan.medication.copy(enabled = false)),
+            plan.copy(times = listOf(plan.times.single().copy(time = LocalTime.of(9, 0)))),
+            plan.copy(
+                schedule = plan.schedule.copy(
+                    weekdays = DayOfWeek.entries.toSet() - DayOfWeek.MONDAY,
+                ),
+            ),
+            plan.copy(schedule = plan.schedule.copy(manualZoneId = "Pacific/Honolulu")),
+        )
+
+        editedPlans.forEach { editedPlan ->
+            assertNotEquals(originalKey, detailDoseStateKey(editedPlan, explicit))
+            assertFalse(isOccurrenceCompatibleWithPlan(editedPlan, explicit))
+        }
     }
 
     @Test
@@ -89,12 +111,12 @@ class MedicationDetailLogicTest {
 
     @Test
     fun scheduleWeekdayChangeMakesOldNotificationOccurrenceStale() {
-        val sundayOccurrence = occurrence("2026-09-07T00:00:00Z")
+        val mondayOccurrence = occurrence("2026-09-07T00:00:00Z")
         val withoutMonday = plan.copy(
             schedule = plan.schedule.copy(weekdays = DayOfWeek.entries.toSet() - DayOfWeek.MONDAY),
         )
 
-        assertFalse(isOccurrenceCompatibleWithPlan(withoutMonday, sundayOccurrence))
+        assertFalse(isOccurrenceCompatibleWithPlan(withoutMonday, mondayOccurrence))
     }
 
     @Test
