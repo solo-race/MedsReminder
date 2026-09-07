@@ -14,7 +14,7 @@ Add a read-only medication detail flow and allow a user to mark the relevant dos
 - Reminder notification opens Detail with the exact reminder occurrence identity.
 - Detail exposes Taken, Skipped, and Edit actions.
 - Existing EditMedicationScreen remains the only medication editor.
-- Existing `dose_events` table and `DoseStatus.TAKEN/SKIPPED` remain the persistence model; no Room schema migration is planned.
+- Existing `dose_events` and `DoseStatus.TAKEN/SKIPPED` remain the decision model; Phase 4 adds only the minimal persisted logical local-day key required to keep decision identity stable across schedule-zone changes.
 - Scheduling becomes decision-aware.
 - Reminder delivery performs a final decision check before posting a notification.
 
@@ -22,7 +22,7 @@ Add a read-only medication detail flow and allow a user to mark the relevant dos
 
 1. A dose occurrence is identified by a stable dose slot plus its exact `scheduledFor` instant; UI code must not infer a fired notification's occurrence from `Instant.now()`.
 2. An unchanged dose slot keeps the same `doseTimeId` across unrelated medication edits.
-3. Recording a dose decision is idempotent at the schedule-zone local-day policy boundary used by reminder deduplication.
+3. Recording a dose decision is idempotent at a persisted logical schedule-local-day boundary; later schedule-zone changes must not reinterpret that decision onto a different logical day.
 4. Database decision state is authoritative; AlarmManager cancellation is an optimization, not the only correctness mechanism.
 5. Every rescheduling entry point must skip an already-decided candidate occurrence and advance to the next eligible one.
 6. ReminderReceiver must re-check the decision immediately before notification display to close cancellation/fire races.
@@ -42,6 +42,8 @@ Add a read-only medication detail flow and allow a user to mark the relevant dos
 ## Primary files expected to change
 
 - `data/local/Daos.kt`
+- `data/local/Entities.kt`
+- `data/local/MedicationDatabase.kt`
 - `data/repository/MedicationRepository.kt`
 - `domain/model/MedicationModels.kt`
 - new domain/use-case file for dose decisions
@@ -61,7 +63,7 @@ Add a read-only medication detail flow and allow a user to mark the relevant dos
 - Redesigning dose history.
 - Adding cloud sync/account semantics.
 - Changing reminder privacy/redaction behavior unrelated to Detail navigation.
-- Introducing a new Room schema solely for this feature.
+- Introducing Room schema changes unrelated to the persisted decision identity required by this feature.
 
 ## Completion criteria
 

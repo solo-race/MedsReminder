@@ -30,7 +30,7 @@ class AppContainer(context: Context) {
         MedicationDatabase::class.java,
         "medication-reminder.db",
     )
-        .addMigrations(MedicationDatabase.MIGRATION_1_2)
+        .addMigrations(MedicationDatabase.MIGRATION_1_2, MedicationDatabase.MIGRATION_2_3)
         .build()
 
     private val roomRepository = RoomMedicationRepository(database)

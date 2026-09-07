@@ -113,6 +113,40 @@ class RoomMedicationRepositoryDoseDecisionTest {
     }
 
     @Test
+    fun decisionRemainsOnSameLogicalDayAcrossInternationalDateLineZoneChange() = runBlocking {
+        val honolulu = ZoneId.of("Pacific/Honolulu")
+        val kiritimati = ZoneId.of("Pacific/Kiritimati")
+        database.scheduleDao().update(schedule.copy(manualZoneId = honolulu.id))
+        val originalOccurrence = occurrence.copy(
+            scheduledFor = Instant.parse("2026-09-07T18:00:00Z"),
+            zoneId = honolulu,
+        )
+
+        assertEquals(
+            DoseDecisionResult.Recorded(DoseStatus.TAKEN),
+            repository.decideDose(originalOccurrence, DoseStatus.TAKEN),
+        )
+
+        database.scheduleDao().update(schedule.copy(manualZoneId = kiritimati.id))
+        val rebuiltOccurrence = occurrence.copy(
+            scheduledFor = Instant.parse("2026-09-06T18:00:00Z"),
+            zoneId = kiritimati,
+        )
+
+        assertTrue(
+            repository.hasDoseDecisionOnLocalDay(
+                rebuiltOccurrence.doseTimeId,
+                rebuiltOccurrence.scheduledFor,
+                rebuiltOccurrence.zoneId,
+            ),
+        )
+        assertEquals(
+            DoseDecisionResult.AlreadyDecided(DoseStatus.TAKEN),
+            repository.decideDose(rebuiltOccurrence, DoseStatus.SKIPPED),
+        )
+    }
+
+    @Test
     fun disabledSlotReturnsStaleAndWritesNothing() = runBlocking {
         database.doseTimeDao().updateAll(listOf(doseTime.copy(enabled = false)))
 
@@ -139,11 +173,12 @@ class RoomMedicationRepositoryDoseDecisionTest {
     }
 
     private suspend fun persistedDecisionStatus(): DoseStatus? {
-        val day = occurrence.scheduledFor.atZone(occurrence.zoneId).toLocalDate()
-        val from = day.atStartOfDay(occurrence.zoneId).toInstant().toEpochMilli()
-        val to = day.plusDays(1).atStartOfDay(occurrence.zoneId).toInstant().toEpochMilli() - 1
+        val scheduledLocalEpochDay = occurrence.scheduledFor
+            .atZone(occurrence.zoneId)
+            .toLocalDate()
+            .toEpochDay()
         return database.doseEventDao()
-            .firstForOnLocalDay(occurrence.doseTimeId, from, to)
+            .firstForLogicalDay(occurrence.doseTimeId, scheduledLocalEpochDay)
             ?.status
     }
 }
