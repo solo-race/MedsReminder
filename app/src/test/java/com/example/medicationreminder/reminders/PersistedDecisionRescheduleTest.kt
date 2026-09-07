@@ -42,7 +42,16 @@ class PersistedDecisionRescheduleTest {
     }
 
     @Test
-    fun earlyDecisionSurvivesDatabaseReopenZoneChangeAndRebuildSkipsOriginalLogicalDay() = runBlocking {
+    fun earlyTakenSurvivesDatabaseReopenZoneChangeAndRebuildSkipsOriginalLogicalDay() = runBlocking {
+        verifyEarlyDecisionSurvivesRestartAndRebuild(DoseStatus.TAKEN)
+    }
+
+    @Test
+    fun earlySkippedSurvivesDatabaseReopenZoneChangeAndRebuildSkipsOriginalLogicalDay() = runBlocking {
+        verifyEarlyDecisionSurvivesRestartAndRebuild(DoseStatus.SKIPPED)
+    }
+
+    private suspend fun verifyEarlyDecisionSurvivesRestartAndRebuild(status: DoseStatus) {
         val originalZone = ZoneId.of("UTC")
         val rebuiltZone = ZoneId.of("Pacific/Kiritimati")
         val scheduledFor = Instant.parse("2026-09-07T08:00:00Z")
@@ -91,8 +100,8 @@ class PersistedDecisionRescheduleTest {
 
             val repository = RoomMedicationRepository(database)
             assertEquals(
-                DoseDecisionResult.Recorded(DoseStatus.TAKEN),
-                repository.decideDose(occurrence, DoseStatus.TAKEN),
+                DoseDecisionResult.Recorded(status),
+                repository.decideDose(occurrence, status),
             )
         } finally {
             database.close()
