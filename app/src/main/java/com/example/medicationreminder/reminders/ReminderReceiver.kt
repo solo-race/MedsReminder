@@ -6,6 +6,7 @@ import android.content.Intent
 import com.example.medicationreminder.appContainer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class ReminderReceiver : BroadcastReceiver() {
@@ -30,6 +31,10 @@ class ReminderReceiver : BroadcastReceiver() {
                     )
                     // One alarm per dose is kept in the system. Schedule tomorrow/next weekday after firing.
                     container.scheduler.schedule(currentDose)
+                }
+                // Optional self-heal: restore reminders the system cleared while the process was frozen.
+                if (container.preferences.repostMissedReminders.first()) {
+                    container.missedReminderReposter.repostUndecidedOverdue()
                 }
             } finally {
                 pendingResult.finish()

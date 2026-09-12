@@ -40,6 +40,14 @@ class AppPreferences(private val context: Context) {
         context.reminderDataStore.edit { it[PERMISSION_PROMPT_DISMISSED] = true }
     }
 
+    val repostMissedReminders: Flow<Boolean> = context.reminderDataStore.data
+        .map { it[REPOST_MISSED_REMINDERS] == true }
+        .distinctUntilChanged()
+
+    suspend fun setRepostMissedReminders(enabled: Boolean) {
+        context.reminderDataStore.edit { it[REPOST_MISSED_REMINDERS] = enabled }
+    }
+
     suspend fun updateAndGetPreviousDeviceZone(currentZoneId: String): String? {
         val previous = context.reminderDataStore.data.first()[LAST_DEVICE_ZONE]
         context.reminderDataStore.edit { it[LAST_DEVICE_ZONE] = currentZoneId }
@@ -49,6 +57,7 @@ class AppPreferences(private val context: Context) {
     private companion object {
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val PERMISSION_PROMPT_DISMISSED = booleanPreferencesKey("permission_prompt_dismissed")
+        val REPOST_MISSED_REMINDERS = booleanPreferencesKey("repost_missed_reminders")
         val LAST_DEVICE_ZONE = stringPreferencesKey("last_device_zone")
     }
 }

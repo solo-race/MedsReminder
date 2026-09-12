@@ -71,4 +71,6 @@
     <string name="permission_dialog_message">提醒需要通知权限。可在系统通知管理中开启通知，并勾选“锁屏/横幅”，让提醒显示在锁屏上。</string>
     <string name="permission_dialog_go_settings">去设置</string>
     <string name="permission_dialog_skip">跳过设置</string>
+    <string name="repost_missed_title">补发错过的提醒</string>
+    <string name="repost_missed_description">提醒触发时，同时恢复仍在等待确认的过期提醒，例如被系统清除的情况。</string>
 </resources>

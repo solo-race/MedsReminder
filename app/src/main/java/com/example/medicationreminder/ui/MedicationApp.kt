@@ -58,6 +58,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -176,6 +177,7 @@ private fun MedicationAppContent(
 
     val context = LocalContext.current
     val permissionPromptDismissed by viewModel.permissionPromptDismissed.collectAsStateWithLifecycle()
+    val repostMissedReminders by viewModel.repostMissedReminders.collectAsStateWithLifecycle()
     var showPermissionDialog by remember { mutableStateOf(false) }
     LaunchedEffect(permissionPromptDismissed) {
         val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -238,6 +240,8 @@ private fun MedicationAppContent(
                     modifier = Modifier.padding(padding),
                     language = language,
                     onLanguageSelected = viewModel::setLanguage,
+                    repostMissedReminders = repostMissedReminders,
+                    onRepostMissedRemindersChanged = viewModel::setRepostMissedReminders,
                 )
             }
         }
@@ -417,6 +421,8 @@ private fun SettingsScreen(
     modifier: Modifier = Modifier,
     language: AppLanguage,
     onLanguageSelected: (AppLanguage) -> Unit,
+    repostMissedReminders: Boolean,
+    onRepostMissedRemindersChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -484,6 +490,14 @@ private fun SettingsScreen(
             )
         }
         item {
+            ToggleCard(
+                title = stringResource(R.string.repost_missed_title),
+                description = stringResource(R.string.repost_missed_description),
+                checked = repostMissedReminders,
+                onChanged = onRepostMissedRemindersChanged,
+            )
+        }
+        item {
             SettingCard(
                 title = stringResource(R.string.privacy),
                 description = stringResource(R.string.privacy_description),
@@ -512,6 +526,21 @@ private fun LanguageSetting(language: AppLanguage, onLanguageSelected: (AppLangu
                     label = { Text(stringResource(R.string.language_simplified_chinese)) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ToggleCard(title: String, description: String, checked: Boolean, onChanged: (Boolean) -> Unit) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+                Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(checked = checked, onCheckedChange = onChanged)
         }
     }
 }
