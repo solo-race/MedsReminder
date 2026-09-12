@@ -8,9 +8,11 @@ import org.junit.Test
 class MedicationDetailNavigationContractTest {
     private val appSource: String by lazy {
         Files.readString(Path.of("src/main/java/com/example/medicationreminder/ui/MedicationApp.kt"))
+            .replace("\r\n", "\n")
     }
     private val detailSource: String by lazy {
         Files.readString(Path.of("src/main/java/com/example/medicationreminder/ui/MedicationDetailScreen.kt"))
+            .replace("\r\n", "\n")
     }
 
     @Test

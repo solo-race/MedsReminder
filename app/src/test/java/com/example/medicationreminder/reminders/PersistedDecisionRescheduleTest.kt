@@ -28,7 +28,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class PersistedDecisionRescheduleTest {
-    private val databaseName = "phase6-persisted-decision.db"
+    // Robolectric includes the test name in its directory; leave room for SQLite journal paths on Windows.
+    private val databaseName = "decision.db"
     private val context get() = RuntimeEnvironment.getApplication()
 
     @Before
