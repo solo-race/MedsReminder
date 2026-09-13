@@ -6,7 +6,7 @@ This directory is the canonical archive for repository architecture, feature, im
 
 **Always read the latest review before making architecture or feature implementation decisions.**
 
-Latest review: [`2026-09-13-2230-sgt-device-smoke-verification.md`](2026-09-13-2230-sgt-device-smoke-verification.md)
+Latest review: [`2026-09-13-2340-sgt-reminder-entry-warm-delivery-correction.md`](2026-09-13-2340-sgt-reminder-entry-warm-delivery-correction.md)
 
 The `Latest review` pointer above is authoritative. Every new review must update this pointer in the same change that adds the review document.
 
@@ -24,6 +24,7 @@ The `Latest review` pointer above is authoritative. Every new review must update
 
 | Review time | Scope | Branch / base | Disposition |
 | --- | --- | --- | --- |
+| 2026-09-13 23:40 SGT | Reminder entry warm-delivery correction — `onNewIntent` ingress, value-keyed dedup, recreation retention, runtime warm-path coverage | `codex/feature-medication-detail-dose-actions` @ `5e28a09` (on `175b1ec`) | Fix implemented; 87 unit tests green, lint 0 errors; device smoke scenarios 13–14 still pending before merge |
 | 2026-09-13 22:30 SGT | Device smoke verification — build/install, Home→Detail→Edit, notification entry, device lifecycle, dose-boundary crossing (PLB110 / ColorOS) | `codex/feature-medication-detail-dose-actions` @ `288d669` | CHANGES REQUIRED; blocking notification-entry defect (1 blocking / 4 non-blocking) |
 | 2026-09-08 07:30 SGT | Phase 6 — Verification and Rollout completion-state Review Gate | `codex/feature-medication-detail-dose-actions` @ `9a862d0c` (implementation/test checkpoint `aec10609`) | PASS WITH NON-BLOCKING FINDINGS; Phase 6 gate passed |
 | 2026-09-08 02:31 SGT | Phase 5 — Medication Detail UI corrective implementation Review Gate | `codex/feature-medication-detail-dose-actions` @ `823bb68e` | PASS WITH NON-BLOCKING FINDINGS; Phase 5 gate passed |
