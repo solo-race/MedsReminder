@@ -13,7 +13,7 @@ After the latest review, use this architecture index and then the relevant featu
 | Feature / source | Architecture focus | Implementation plan / entry point | Status |
 | --- | --- | --- | --- |
 | Review archive | Time-locked architecture, implementation, and regression reviews; latest findings override older review assumptions when they conflict | [`../review/README.md`](../review/README.md) — read **Latest review** first | Active / canonical review entry point |
-| Medication Detail + pre-alarm dose decisions | Stable dose-slot identity, explicit occurrence identity, transactional dose decisions, decision-aware AlarmManager scheduling and receiver guards | [`../feature-plans/medication-detail-dose-actions/README.md`](../feature-plans/medication-detail-dose-actions/README.md) | Implemented through Phase 6; all Review Gates passed; feature branch remains active pending user-controlled merge/release handling and available device smoke. |
+| Medication Detail + pre-alarm dose decisions | Stable dose-slot identity, explicit occurrence identity, transactional dose decisions, decision-aware AlarmManager scheduling and receiver guards | [`../feature-plans/medication-detail-dose-actions/README.md`](../feature-plans/medication-detail-dose-actions/README.md) | Implemented through Phase 6; all phase Review Gates passed; device smoke executed 2026-09-13 (`../review/2026-09-13-2230-sgt-device-smoke-verification.md`) with a blocking notification-entry finding — branch remains active and unmerged pending that fix. |
 
 ## Current feature contract
 

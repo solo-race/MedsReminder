@@ -24,6 +24,8 @@ Add focused coverage before merge:
 10. Deleted/disabled medication or removed slot ignores stale action.
 11. DST gap and overlap behavior does not regress.
 12. Existing edit, delete, notification redaction, persistent reminder, and history behavior remain intact.
+13. Reminder opened while the app is already running (foreground and backgrounded): Detail binds that reminder's explicit occurrence and Taken/Skipped apply to it, not to the next computed dose.
+14. The same reminder opened twice, and after an orientation change: no duplicate Detail back-stack entries, and the explicit occurrence is retained.
 
 ## Build/lint gate
 
@@ -36,6 +38,8 @@ java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain 
 Use the documented `JAVA_HOME` and `GRADLE_USER_HOME` environment when running on the verified workstation.
 
 ## Device smoke
+
+Executed 2026-09-13 on PLB110 / ColorOS: results, evidence, and OEM observations are in `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md` and `docs/memory.md`. The check "notification → exact occurrence Detail" **failed** for a reminder opened while the app was already running; the remaining checks passed.
 
 On the existing OPPO/ColorOS device when available:
 

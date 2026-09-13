@@ -36,7 +36,7 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
 | `codex/feature-notification-guidance` | `40afac8` | Merged into master (`40afac8`, v0.018). |
 | `codex/feature-repost-missed-reminders` | `4dc52ee` | v0.019: Settings-gated self-heal re-posting; suite + device verified. |
-| `codex/feature-medication-detail-dose-actions` | `a78ba10` review-gated checkpoint | Active; Phases 1–6 Review Gates passed. Awaiting user-controlled merge/release handling and available device smoke; do not modify `master`, create/merge PRs, or close the feature without explicit authorization. |
+|`codex/feature-medication-detail-dose-actions`|`288d669`|Active; Phases 1–6 Review Gates passed. Device smoke executed 2026-09-13 (`docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`) → CHANGES REQUIRED: a reminder opened while the app is already running loses its explicit occurrence and does not navigate. Do not merge, modify `master`, create/merge PRs, or close the feature without explicit authorization.|
 
 ## Verification
 

@@ -32,14 +32,16 @@ The exact final location/name may change during implementation, but the identity
 5. If an explicit occurrence is present, Detail must use it rather than recomputing from `Instant.now()`.
 6. Validate that the occurrence still belongs to the medication/slot before enabling actions.
 7. Define fallback behavior for a stale notification: show medication Detail if the medication remains, but disable occurrence actions when the referenced slot is no longer actionable.
+8. Bind the occurrence ingress to reminder delivery, not to Activity creation: a reminder that arrives while the app is already running must reach Detail through the same explicit-occurrence path as a cold open (an `onNewIntent` equivalent that updates the entry state the UI observes), and the bound occurrence must survive Activity recreation. The 2026-09-13 device smoke showed the reviewed implementation satisfied step 4 only for the cold case; see `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`.
 
 ## Tests
 
 - A notification fired for 08:00 and opened at 08:05 still targets 08:00.
+- The same reminder opened while the app is already running (foreground or backgrounded, task alive) binds the same explicit occurrence as a cold open and does not re-derive it from the current clock.
 - Multiple daily times do not cross-target.
 - A stale notification for a deleted slot cannot record a new dose event.
 - Home-opened Detail computes the next eligible upcoming occurrence.
 
 ## Exit criteria
 
-All dose-action call sites receive an explicit occurrence identity; fired notifications never infer their action target from the current clock.
+All dose-action call sites receive an explicit occurrence identity; fired notifications never infer their action target from the current clock. This must hold for both cold and already-running delivery: the occurrence ingress follows reminder delivery, not Activity creation.

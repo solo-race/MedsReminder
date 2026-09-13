@@ -8,3 +8,5 @@ build/
 app/build/
 *.iml
 
+# ChatGPT repo cache
+.chatgpt/

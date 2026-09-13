@@ -1,6 +1,6 @@
 # Medication Detail + Pre-alarm Dose Decisions
 
-Status: implementation complete through Phase 6; all phase Review Gates passed on `codex/feature-medication-detail-dose-actions`. Feature branch remains active pending user-controlled merge/release handling and available device smoke.
+Status: implementation complete through Phase 6; all phase Review Gates passed on `codex/feature-medication-detail-dose-actions`. Device smoke was executed 2026-09-13 (PLB110/ColorOS) and found a blocking defect in the notification entry path — see `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`. The branch remains active and unmerged pending that fix; do not merge before it is implemented and re-reviewed.
 
 Branch: `codex/feature-medication-detail-dose-actions`
 
@@ -27,6 +27,7 @@ Add a read-only medication detail flow and allow a user to mark the relevant dos
 5. Every rescheduling entry point must skip an already-decided candidate occurrence and advance to the next eligible one.
 6. ReminderReceiver must re-check the decision immediately before notification display to close cancellation/fire races.
 7. Stale notification actions must not create orphan or invalid dose events after a medication/slot is removed or disabled.
+8. A reminder must bind the same explicit occurrence whether the app is cold-started or already running; the occurrence ingress follows reminder delivery, not Activity creation (device smoke 2026-09-13 found the reviewed implementation violated this for the already-running case).
 
 ## Implementation order
 
