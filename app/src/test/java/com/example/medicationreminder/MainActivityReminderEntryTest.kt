@@ -1,6 +1,8 @@
 package com.example.medicationreminder
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Looper
 import androidx.lifecycle.ViewModelProvider
 import com.example.medicationreminder.domain.model.DoseOccurrence
@@ -119,6 +121,17 @@ class MainActivityReminderEntryTest {
         viewModel.onReminderIntent(entry, reapplied = false)
 
         assertEquals(entry, viewModel.reminderEntry.value)
+    }
+
+    @Test
+    fun reminderEntryDeliversWarmIntentsToTheRunningInstance() {
+        // Device-verified 2026-09-14: with the default launch mode, a NEW_TASK intent aimed at the
+        // root activity of an existing task only brings the task forward on PLB110/ColorOS and no
+        // onNewIntent is delivered, so the notification tap silently loses its occurrence.
+        val context = RuntimeEnvironment.getApplication()
+        val info = context.packageManager.getActivityInfo(ComponentName(context, MainActivity::class.java), 0)
+
+        assertEquals(ActivityInfo.LAUNCH_SINGLE_TOP, info.launchMode)
     }
 
     @Test
