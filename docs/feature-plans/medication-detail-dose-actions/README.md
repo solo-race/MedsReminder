@@ -1,6 +1,6 @@
 # Medication Detail + Pre-alarm Dose Decisions
 
-Status: implementation complete through Phase 6; all phase Review Gates passed on `codex/feature-medication-detail-dose-actions`. Device smoke was executed 2026-09-13 (PLB110/ColorOS) and found a blocking defect in the notification entry path — see `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`. That correction is implemented in `5e28a09` with runtime warm-path coverage and a green automated gate (`docs/review/2026-09-13-2340-sgt-reminder-entry-warm-delivery-correction.md`); the device smoke re-run of plan scenarios 13–14 is still pending, so the branch stays active and unmerged.
+Status: implementation complete through Phase 6; all phase Review Gates passed on `codex/feature-medication-detail-dose-actions`. Device smoke 2026-09-13 found a blocking defect in the notification entry path (warm delivery lost the occurrence — `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`); the correction (`5e28a09` ingress + `0caed66` singleTop delivery) is implemented, automated-verified (88 unit tests, lint 0 errors) and device-verified for foreground, background, and real-notification-tap delivery — `docs/review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`. The branch stays active and unmerged pending the merge decision.
 
 Branch: `codex/feature-medication-detail-dose-actions`
 

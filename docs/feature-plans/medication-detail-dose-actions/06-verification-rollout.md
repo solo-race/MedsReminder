@@ -41,6 +41,8 @@ Use the documented `JAVA_HOME` and `GRADLE_USER_HOME` environment when running o
 
 Executed 2026-09-13 on PLB110 / ColorOS: results, evidence, and OEM observations are in `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md` and `docs/memory.md`. The check "notification → exact occurrence Detail" **failed** for a reminder opened while the app was already running; the remaining checks passed.
 
+Re-executed 2026-09-14 after the correction (`5e28a09` entry contract + `0caed66` singleTop delivery): the notification-entry check now **passes** for a foregrounded app, a backgrounded app, and a tapped real reminder notification (SystemUI `PendingIntent`), with scenario 14 (same reminder twice, rotation) and the cold path still passing. Results: `docs/review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`.
+
 On the existing OPPO/ColorOS device when available:
 
 - verify Home → Detail → Edit navigation;

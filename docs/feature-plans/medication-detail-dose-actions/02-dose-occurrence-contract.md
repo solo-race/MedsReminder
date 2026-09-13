@@ -33,11 +33,13 @@ The exact final location/name may change during implementation, but the identity
 6. Validate that the occurrence still belongs to the medication/slot before enabling actions.
 7. Define fallback behavior for a stale notification: show medication Detail if the medication remains, but disable occurrence actions when the referenced slot is no longer actionable.
 8. Bind the occurrence ingress to reminder delivery, not to Activity creation: a reminder that arrives while the app is already running must reach Detail through the same explicit-occurrence path as a cold open (an `onNewIntent` equivalent that updates the entry state the UI observes), and the bound occurrence must survive Activity recreation. The 2026-09-13 device smoke showed the reviewed implementation satisfied step 4 only for the cold case; see `docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`.
+9. Declare the entry Activity `android:launchMode="singleTop"`. Device evidence (2026-09-14) showed that on PLB110/ColorOS a NEW_TASK intent aimed at the root activity of an existing task only brings the task forward when the top instance does not match the launch mode: AMS reports `START_DELIVERED_TO_TOP`, but `onNewIntent` never runs and the reminder tap silently loses its occurrence. See `docs/review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`.
 
 ## Tests
 
 - A notification fired for 08:00 and opened at 08:05 still targets 08:00.
 - The same reminder opened while the app is already running (foreground or backgrounded, task alive) binds the same explicit occurrence as a cold open and does not re-derive it from the current clock.
+- The entry Activity declares `singleTop`, so a warm reminder intent is delivered to the running instance as `onNewIntent` (asserted through the package manager; the OEM delivery decision itself stays device-verified).
 - Multiple daily times do not cross-target.
 - A stale notification for a deleted slot cannot record a new dose event.
 - Home-opened Detail computes the next eligible upcoming occurrence.
