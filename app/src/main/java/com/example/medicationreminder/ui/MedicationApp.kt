@@ -92,7 +92,6 @@ import androidx.navigation.navArgument
 import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
-import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.TimeZoneMode
@@ -119,7 +118,7 @@ private object Routes {
 }
 
 @Composable
-fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long) {
+fun MedicationApp(viewModel: MedicationViewModel) {
     val language by viewModel.language.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val localizedContext = remember(language) { context.withAppLanguage(language) }
@@ -133,7 +132,7 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
         LocalContext provides localizedContext,
         LocalConfiguration provides localizedConfiguration,
     ) {
-        MedicationAppContent(viewModel, notificationMedicationId, language)
+        MedicationAppContent(viewModel, language)
     }
 }
 
@@ -149,18 +148,16 @@ private fun Context.withAppLanguage(language: AppLanguage): Context {
 @Composable
 private fun MedicationAppContent(
     viewModel: MedicationViewModel,
-    notificationMedicationId: Long,
     language: AppLanguage,
 ) {
     val navController = rememberNavController()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
-    val notificationOccurrence = LocalNotificationDoseOccurrence.current
+    val reminderEntry by viewModel.reminderEntry.collectAsStateWithLifecycle()
+    val reminderOccurrence by viewModel.reminderOccurrence.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val errorMessage = error?.let { stringResource(it) }
     val snackbarHost = remember { SnackbarHostState() }
-    var openedNotificationTarget by remember { mutableStateOf(false) }
-    var detailOccurrence by remember(notificationOccurrence) { mutableStateOf<DoseOccurrence?>(notificationOccurrence) }
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -168,12 +165,9 @@ private fun MedicationAppContent(
             viewModel.clearError()
         }
     }
-    LaunchedEffect(notificationMedicationId, notificationOccurrence) {
-        if (!openedNotificationTarget && notificationMedicationId >= 0) {
-            openedNotificationTarget = true
-            detailOccurrence = notificationOccurrence
-            navController.navigate(Routes.detail(notificationMedicationId))
-        }
+    LaunchedEffect(reminderEntry) {
+        val opened = viewModel.reminderEntryOpened() ?: return@LaunchedEffect
+        navController.navigate(Routes.detail(opened.medicationId)) { launchSingleTop = true }
     }
 
     val context = LocalContext.current
@@ -225,7 +219,7 @@ private fun MedicationAppContent(
                     plans = plans,
                     modifier = Modifier.padding(padding),
                     onOpenDetail = { medicationId ->
-                        detailOccurrence = null
+                        viewModel.clearReminderOccurrence()
                         navController.navigate(Routes.detail(medicationId))
                     },
                 )
@@ -260,7 +254,7 @@ private fun MedicationAppContent(
             val id = entry.arguments?.getLong("medicationId") ?: return@composable
             MedicationDetailScreen(
                 plan = plans.firstOrNull { it.medication.id == id },
-                explicitOccurrence = detailOccurrence?.takeIf { it.medicationId == id },
+                explicitOccurrence = reminderOccurrence?.takeIf { it.medicationId == id },
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onEdit = { navController.navigate(Routes.edit(it)) },

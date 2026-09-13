@@ -1,13 +1,15 @@
 package com.example.medicationreminder
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.example.medicationreminder.domain.model.DoseOccurrence
-import com.example.medicationreminder.ui.MedicationAppEntry
+import com.example.medicationreminder.ui.MedicationApp
 import com.example.medicationreminder.ui.MedicationViewModel
+import com.example.medicationreminder.ui.ReminderEntry
 import com.example.medicationreminder.ui.theme.MedicationReminderTheme
 import java.time.Instant
 import java.time.ZoneId
@@ -34,25 +36,41 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val occurrence = intentDoseOccurrence()
-        val fallbackMedicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
+        applyIntent(intent, reapplied = true)
         setContent {
             MedicationReminderTheme {
-                MedicationAppEntry(
-                    viewModel = viewModel,
-                    notificationOccurrence = occurrence,
-                    notificationMedicationId = fallbackMedicationId,
-                )
+                MedicationApp(viewModel = viewModel)
             }
         }
     }
 
-    private fun intentDoseOccurrence(): DoseOccurrence? = navigationDoseOccurrenceOrNull(
-        medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1),
-        doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1),
-        scheduledForEpochMillis = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1),
-        zoneIdValue = intent.getStringExtra(EXTRA_ZONE_ID),
-    )
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyIntent(intent, reapplied = false)
+    }
+
+    /**
+     * Parses the reminder extras for both delivery paths: the launch intent read in [onCreate]
+     * (re-applied whenever the Activity is recreated) and a new intent delivered to the running
+     * Activity in [onNewIntent]. The ViewModel deduplicates the re-application.
+     */
+    private fun applyIntent(intent: Intent, reapplied: Boolean) {
+        val medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
+        if (medicationId < 0) return
+        viewModel.onReminderIntent(
+            entry = ReminderEntry(
+                medicationId = medicationId,
+                occurrence = navigationDoseOccurrenceOrNull(
+                    medicationId = medicationId,
+                    doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1),
+                    scheduledForEpochMillis = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1),
+                    zoneIdValue = intent.getStringExtra(EXTRA_ZONE_ID),
+                ),
+            ),
+            reapplied = reapplied,
+        )
+    }
 
     companion object {
         const val EXTRA_MEDICATION_ID = "open_medication_id"

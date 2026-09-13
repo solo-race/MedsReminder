@@ -23,13 +23,6 @@ class MedicationDetailNavigationContractTest {
     }
 
     @Test
-    fun notificationTargetRoutesToDetailWithExplicitOccurrencePreserved() {
-        assertTrue(appSource.contains("detailOccurrence = notificationOccurrence"))
-        assertTrue(appSource.contains("navController.navigate(Routes.detail(notificationMedicationId))"))
-        assertTrue(appSource.contains("explicitOccurrence = detailOccurrence?.takeIf { it.medicationId == id }"))
-    }
-
-    @Test
     fun detailEditActionRoutesToExistingEditor() {
         assertTrue(appSource.contains("onEdit = { navController.navigate(Routes.edit(it)) }"))
         assertTrue(appSource.contains("composable(\n            route = Routes.EDIT,"))

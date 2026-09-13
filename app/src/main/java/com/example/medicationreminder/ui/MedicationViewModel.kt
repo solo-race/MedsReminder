@@ -24,6 +24,13 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Medication and optional explicit dose occurrence the user opened from a reminder entry point
+ * (notification content intent or alarm status-bar intent). A null occurrence means the intent
+ * carried no usable occurrence identity, so Detail falls back to the next actionable dose.
+ */
+data class ReminderEntry(val medicationId: Long, val occurrence: DoseOccurrence?)
+
 class MedicationViewModel(application: Application) : AndroidViewModel(application) {
     private val container = (application as MedicationReminderApplication).container
 
@@ -59,6 +66,22 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     private val _error = MutableStateFlow<Int?>(null)
     val error: StateFlow<Int?> = _error.asStateFlow()
 
+    private val _reminderEntry = MutableStateFlow<ReminderEntry?>(null)
+
+    /** Reminder delivery that still has to be opened by the UI; filled by [onReminderIntent]. */
+    val reminderEntry: StateFlow<ReminderEntry?> = _reminderEntry.asStateFlow()
+
+    private val _reminderOccurrence = MutableStateFlow<DoseOccurrence?>(null)
+
+    /**
+     * Explicit occurrence of the delivery the UI last opened; Detail binds it instead of deriving
+     * one from the current clock. Retained across Activity recreation and cleared whenever Detail
+     * is opened from Home.
+     */
+    val reminderOccurrence: StateFlow<DoseOccurrence?> = _reminderOccurrence.asStateFlow()
+
+    private var lastDeliveredEntry: ReminderEntry? = null
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             container.preferences.updateAndGetPreviousDeviceZone(ZoneId.systemDefault().id)
@@ -68,6 +91,38 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun clearError() {
         _error.value = null
+    }
+
+    /**
+     * Records a reminder delivery from the Activity's launch or new intent.
+     *
+     * [reapplied] marks the launch intent being read again while the Activity is recreated: a
+     * re-application that repeats the entry already delivered to this ViewModel is ignored, so
+     * recreation does not replay navigation. A genuine new delivery always counts, so a repeated
+     * notification tap re-opens its Detail.
+     */
+    fun onReminderIntent(entry: ReminderEntry, reapplied: Boolean) {
+        if (reapplied && entry == lastDeliveredEntry) return
+        lastDeliveredEntry = entry
+        _reminderEntry.value = entry
+    }
+
+    /**
+     * Retires the pending [reminderEntry] for the UI that is opening it and reports which entry was
+     * retired: its explicit occurrence is bound for Detail and the delivery is dropped so Activity
+     * recreation does not replay it. The caller must navigate with the returned entry, so a newer
+     * delivery arriving in the same frame cannot bind its occurrence to another medication.
+     */
+    fun reminderEntryOpened(): ReminderEntry? {
+        val entry = _reminderEntry.value ?: return null
+        _reminderOccurrence.value = entry.occurrence
+        _reminderEntry.value = null
+        return entry
+    }
+
+    /** Binds Detail opened from Home to a schedule-derived occurrence again. */
+    fun clearReminderOccurrence() {
+        _reminderOccurrence.value = null
     }
 
     fun setLanguage(language: AppLanguage) {
