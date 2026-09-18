@@ -13,15 +13,28 @@ import com.example.medicationreminder.reminders.MissedReminderReposter
 import com.example.medicationreminder.reminders.ReminderDoseDecisionEffects
 import com.example.medicationreminder.reminders.ReminderNotifications
 import com.example.medicationreminder.reminders.ReminderScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class MedicationReminderApplication : Application() {
     lateinit var container: AppContainer
         private set
 
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(applicationContext)
         container.notifications.createChannels()
+
+        // Restore AlarmManager entries whenever the process starts. This covers app updates,
+        // force-stop recovery and devices that remove pending alarms without broadcasting a
+        // recoverable system event.
+        applicationScope.launch {
+            container.scheduler.scheduleAll()
+        }
     }
 }
 
