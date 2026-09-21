@@ -38,7 +38,7 @@
     <string name="allow">允许</string>
     <string name="exact_alarms">精确闹钟</string>
     <string name="exact_alarms_allowed">已允许 — 提醒会按准确分钟安排。</string>
-    <string name="exact_alarms_not_allowed">未允许 — Android 可能会为了节省电量而延迟提醒。</string>
+    <string name="exact_alarms_not_allowed">未允许 — 开启此权限前，提醒会保持暂停。</string>
     <string name="privacy">隐私</string>
     <string name="privacy_description">药物详情、照片和记录仅存储在此设备上。不使用账号或云同步。</string>
     <string name="language_title">语言</string>
@@ -87,6 +87,9 @@
     <string name="permission_dialog_message">提醒需要通知权限。可在系统通知管理中开启通知，并勾选“锁屏/横幅”，让提醒显示在锁屏上。</string>
     <string name="permission_dialog_go_settings">去设置</string>
     <string name="permission_dialog_skip">跳过设置</string>
+    <string name="exact_alarm_dialog_title">允许精确闹钟</string>
+    <string name="exact_alarm_dialog_message">要在计划时间发送用药提醒，需要精确闹钟权限。请打开“闹钟和提醒”并允许此应用。</string>
+    <string name="exact_alarm_dialog_go_settings">打开“闹钟和提醒”</string>
     <string name="repost_missed_title">补发错过的提醒</string>
     <string name="repost_missed_description">提醒触发时，同时恢复仍在等待确认的过期提醒，例如被系统清除的情况。</string>
 </resources>

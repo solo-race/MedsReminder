@@ -40,6 +40,14 @@ class AppPreferences(private val context: Context) {
         context.reminderDataStore.edit { it[PERMISSION_PROMPT_DISMISSED] = true }
     }
 
+    val exactAlarmPromptDismissed: Flow<Boolean> = context.reminderDataStore.data
+        .map { it[EXACT_ALARM_PROMPT_DISMISSED] == true }
+        .distinctUntilChanged()
+
+    suspend fun setExactAlarmPromptDismissed() {
+        context.reminderDataStore.edit { it[EXACT_ALARM_PROMPT_DISMISSED] = true }
+    }
+
     val repostMissedReminders: Flow<Boolean> = context.reminderDataStore.data
         .map { it[REPOST_MISSED_REMINDERS] == true }
         .distinctUntilChanged()
@@ -57,6 +65,7 @@ class AppPreferences(private val context: Context) {
     private companion object {
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val PERMISSION_PROMPT_DISMISSED = booleanPreferencesKey("permission_prompt_dismissed")
+        val EXACT_ALARM_PROMPT_DISMISSED = booleanPreferencesKey("exact_alarm_prompt_dismissed")
         val REPOST_MISSED_REMINDERS = booleanPreferencesKey("repost_missed_reminders")
         val LAST_DEVICE_ZONE = stringPreferencesKey("last_device_zone")
     }

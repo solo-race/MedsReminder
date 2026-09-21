@@ -38,7 +38,7 @@
     <string name="allow">Allow</string>
     <string name="exact_alarms">Exact alarms</string>
     <string name="exact_alarms_allowed">Allowed — reminders are scheduled for their exact minute.</string>
-    <string name="exact_alarms_not_allowed">Not allowed — Android may delay reminders to save battery.</string>
+    <string name="exact_alarms_not_allowed">Not allowed — reminders stay paused until you enable this access.</string>
     <string name="privacy">Privacy</string>
     <string name="privacy_description">Medication details, photos, and history are stored only on this device. No account or cloud sync is used.</string>
     <string name="language_title">Language</string>
@@ -87,6 +87,9 @@
     <string name="permission_dialog_message">Reminders need notification permission. In the system notification management you can also enable Lockscreen/Banner so reminders show on the lockscreen.</string>
     <string name="permission_dialog_go_settings">Go to settings</string>
     <string name="permission_dialog_skip">Skip</string>
+    <string name="exact_alarm_dialog_title">Allow exact alarms</string>
+    <string name="exact_alarm_dialog_message">Exact alarm access is required to deliver medication reminders at their scheduled times. Open Alarms &amp; reminders and allow this app.</string>
+    <string name="exact_alarm_dialog_go_settings">Open Alarms &amp; reminders</string>
     <string name="repost_missed_title">Re-post missed reminders</string>
     <string name="repost_missed_description">When a reminder fires, also restore earlier reminders that are still waiting for an answer, for example after the system cleared them.</string>
 </resources>

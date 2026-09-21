@@ -3,6 +3,7 @@ package com.example.medicationreminder.reminders
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.example.medicationreminder.appContainer
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import java.time.Instant
@@ -40,13 +41,18 @@ class ReminderReceiver : BroadcastReceiver() {
                         container.notifications.cancelReminder(occurrence.doseTimeId)
                     },
                     scheduleFollowing = { dose, boundary ->
-                        container.scheduler.scheduleAfter(dose, boundary)
+                        val result = container.scheduler.scheduleAfter(dose, boundary)
+                        if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                            Log.i(TAG, "Next reminder after delivery is waiting for exact-alarm access")
+                        }
                     },
                 )
                 // Optional self-heal: restore reminders the system cleared while the process was frozen.
                 if (container.preferences.repostMissedReminders.first()) {
                     container.missedReminderReposter.repostUndecidedOverdue()
                 }
+            } catch (error: Exception) {
+                Log.e(TAG, "Unable to deliver reminder occurrence and schedule its successor", error)
             } finally {
                 pendingResult.finish()
             }
@@ -65,8 +71,13 @@ class ReminderReceiver : BroadcastReceiver() {
             val doseTimeId = getLongExtra(EXTRA_DOSE_TIME_ID, -1)
             val scheduledFor = getLongExtra(EXTRA_SCHEDULED_FOR, -1)
             val zoneId = runCatching { ZoneId.of(getStringExtra(EXTRA_ZONE_ID).orEmpty()) }.getOrNull()
-            if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0 || zoneId == null) return null
+            if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0 || zoneId == null) {
+                Log.w(TAG, "Ignoring reminder broadcast with incomplete occurrence identity")
+                return null
+            }
             return DoseOccurrence(medicationId, doseTimeId, Instant.ofEpochMilli(scheduledFor), zoneId)
         }
+
+        private const val TAG = "ReminderReceiver"
     }
 }

@@ -2,6 +2,7 @@ package com.example.medicationreminder.ui
 
 import android.app.Application
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.medicationreminder.MedicationReminderApplication
@@ -13,6 +14,7 @@ import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.reminders.nextUndecidedOccurrence
+import com.example.medicationreminder.reminders.ScheduleResult
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +59,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         true,
     )
 
+    val exactAlarmPromptDismissed = container.preferences.exactAlarmPromptDismissed.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        true,
+    )
+
     val repostMissedReminders = container.preferences.repostMissedReminders.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -84,8 +92,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            container.preferences.updateAndGetPreviousDeviceZone(ZoneId.systemDefault().id)
-            container.scheduler.scheduleAll()
+            runCatching {
+                container.preferences.updateAndGetPreviousDeviceZone(ZoneId.systemDefault().id)
+                container.scheduler.scheduleAll()
+            }.onFailure { error ->
+                Log.e(TAG, "Unable to restore reminder alarms from the app process", error)
+            }.onSuccess { result ->
+                if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                    Log.i(TAG, "App-process reminder restore is waiting for exact-alarm access")
+                }
+            }
         }
     }
 
@@ -131,6 +147,28 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun dismissPermissionPrompt() {
         viewModelScope.launch { container.preferences.setPermissionPromptDismissed() }
+    }
+
+    fun dismissExactAlarmPrompt() {
+        viewModelScope.launch { container.preferences.setExactAlarmPromptDismissed() }
+    }
+
+    fun onExactAlarmPermissionRestored() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                if (container.scheduler.canScheduleExactAlarms()) {
+                    container.scheduler.scheduleAll()
+                } else {
+                    ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
+                }
+            }.onFailure { error ->
+                Log.e(TAG, "Unable to restore reminder alarms after exact-alarm access", error)
+            }.onSuccess { result ->
+                if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                    Log.i(TAG, "Reminder restore remains waiting for exact-alarm access")
+                }
+            }
+        }
     }
 
     fun setRepostMissedReminders(enabled: Boolean) {
@@ -205,7 +243,10 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                         }
                         val result = container.repository.saveMedication(draft.copy(existingPhotoPath = photoPath))
                         container.imageStore.delete(result.replacedPhotoPath)
-                        container.scheduler.scheduleAll()
+                        val scheduleResult = container.scheduler.scheduleAll()
+                        if (scheduleResult == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                            Log.i(TAG, "Saved medication reminder rebuild is waiting for exact-alarm access")
+                        }
                         result
                     } catch (error: Exception) {
                         container.imageStore.delete(newlyStoredPhoto)
@@ -216,7 +257,17 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                 onSaved()
             }.onFailure {
                 _error.value = R.string.error_save_medication
-                viewModelScope.launch(Dispatchers.IO) { container.scheduler.scheduleAll() }
+                viewModelScope.launch(Dispatchers.IO) {
+                    runCatching { container.scheduler.scheduleAll() }
+                        .onSuccess { result ->
+                            if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                                Log.i(TAG, "Retry reminder rebuild is waiting for exact-alarm access")
+                            }
+                        }
+                        .onFailure { error ->
+                            Log.e(TAG, "Unable to retry reminder alarm rebuild after save failure", error)
+                        }
+                }
             }
         }
     }
@@ -231,10 +282,17 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                     }
                     val photo = container.repository.deleteMedication(plan.medication.id)
                     container.imageStore.delete(photo)
-                    container.scheduler.scheduleAll()
+                    val scheduleResult = container.scheduler.scheduleAll()
+                    if (scheduleResult == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                        Log.i(TAG, "Deleted medication reminder rebuild is waiting for exact-alarm access")
+                    }
                 }
             }.onSuccess { onDeleted() }
                 .onFailure { _error.value = R.string.error_delete_medication }
         }
+    }
+
+    private companion object {
+        const val TAG = "MedicationViewModel"
     }
 }

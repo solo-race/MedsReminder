@@ -2,6 +2,7 @@ package com.example.medicationreminder
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import com.example.medicationreminder.data.local.MedicationDatabase
 import com.example.medicationreminder.data.photos.MedicationImageStore
@@ -13,6 +14,7 @@ import com.example.medicationreminder.reminders.MissedReminderReposter
 import com.example.medicationreminder.reminders.ReminderDoseDecisionEffects
 import com.example.medicationreminder.reminders.ReminderNotifications
 import com.example.medicationreminder.reminders.ReminderScheduler
+import com.example.medicationreminder.reminders.ScheduleResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,8 +35,18 @@ class MedicationReminderApplication : Application() {
         // force-stop recovery and devices that remove pending alarms without broadcasting a
         // recoverable system event.
         applicationScope.launch {
-            container.scheduler.scheduleAll()
+            runCatching { container.scheduler.scheduleAll() }
+                .onSuccess { result ->
+                    if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                        Log.i(TAG, "Reminder alarm restore is waiting for exact-alarm access")
+                    }
+                }
+                .onFailure { error -> Log.e(TAG, "Unable to restore reminder alarms", error) }
         }
+    }
+
+    private companion object {
+        const val TAG = "MedicationReminderApp"
     }
 }
 

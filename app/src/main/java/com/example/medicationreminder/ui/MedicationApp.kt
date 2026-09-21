@@ -172,12 +172,32 @@ private fun MedicationAppContent(
 
     val context = LocalContext.current
     val permissionPromptDismissed by viewModel.permissionPromptDismissed.collectAsStateWithLifecycle()
+    val exactAlarmPromptDismissed by viewModel.exactAlarmPromptDismissed.collectAsStateWithLifecycle()
     val repostMissedReminders by viewModel.repostMissedReminders.collectAsStateWithLifecycle()
+    var exactAlarmAllowed by remember { mutableStateOf(canScheduleExactAlarms(context)) }
     var showPermissionDialog by remember { mutableStateOf(false) }
-    LaunchedEffect(permissionPromptDismissed) {
+    var showExactAlarmDialog by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        val wasExactAlarmAllowed = exactAlarmAllowed
+        exactAlarmAllowed = canScheduleExactAlarms(context)
+        if (exactAlarmPermissionRestored(wasExactAlarmAllowed, exactAlarmAllowed)) {
+            viewModel.onExactAlarmPermissionRestored()
+        }
+        onPauseOrDispose { }
+    }
+    LaunchedEffect(permissionPromptDismissed, exactAlarmPromptDismissed, exactAlarmAllowed) {
         val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        if (!canNotify && !permissionPromptDismissed) showPermissionDialog = true
+        when {
+            !canNotify && !permissionPromptDismissed -> {
+                showPermissionDialog = true
+                showExactAlarmDialog = false
+            }
+            !exactAlarmAllowed && !exactAlarmPromptDismissed -> {
+                showPermissionDialog = false
+                showExactAlarmDialog = true
+            }
+        }
     }
     if (showPermissionDialog) {
         AlertDialog(
@@ -198,6 +218,29 @@ private fun MedicationAppContent(
                 TextButton(onClick = {
                     viewModel.dismissPermissionPrompt()
                     showPermissionDialog = false
+                }) { Text(stringResource(R.string.permission_dialog_skip)) }
+            },
+        )
+    }
+    if (showExactAlarmDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.dismissExactAlarmPrompt()
+                showExactAlarmDialog = false
+            },
+            title = { Text(stringResource(R.string.exact_alarm_dialog_title)) },
+            text = { Text(stringResource(R.string.exact_alarm_dialog_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissExactAlarmPrompt()
+                    showExactAlarmDialog = false
+                    openExactAlarmSettings(context)
+                }) { Text(stringResource(R.string.exact_alarm_dialog_go_settings)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissExactAlarmPrompt()
+                    showExactAlarmDialog = false
                 }) { Text(stringResource(R.string.permission_dialog_skip)) }
             },
         )
@@ -441,7 +484,6 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val alarms = remember { context.getSystemService(AlarmManager::class.java) }
     var notificationsAllowed by remember {
         mutableStateOf(
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -449,12 +491,12 @@ private fun SettingsScreen(
         )
     }
     var exactAllowed by remember {
-        mutableStateOf(Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms())
+        mutableStateOf(canScheduleExactAlarms(context))
     }
     LifecycleResumeEffect(Unit) {
         notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
+        exactAllowed = canScheduleExactAlarms(context)
         onPauseOrDispose { }
     }
     LazyColumn(
@@ -490,9 +532,7 @@ private fun SettingsScreen(
                     null
                 },
                 onAction = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(Uri.parse("package:${context.packageName}")),
-                    )
+                    openExactAlarmSettings(context)
                 },
             )
         }
@@ -588,6 +628,29 @@ private fun openAppNotificationSettings(context: Context) {
         )
     }
 }
+
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                .setData(Uri.parse("package:${context.packageName}")),
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${context.packageName}")),
+        )
+    }
+}
+
+private fun canScheduleExactAlarms(context: Context): Boolean {
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+}
+
+internal fun exactAlarmPermissionRestored(wasAllowed: Boolean, isAllowed: Boolean): Boolean =
+    !wasAllowed && isAllowed
 
 @Composable
 private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationViewModel, onBack: () -> Unit) {

@@ -12,7 +12,7 @@ Open this folder in Android Studio, allow Gradle to download dependencies, then 
 ## Permissions
 
 - **Notifications**: required on Android 13+ to display reminders.
-- **Exact alarms**: requested on Android 12+ for minute-accurate reminders. The app falls back to Android's best-effort alarm scheduling if denied.
+- **Exact alarms**: requested on Android 12+ for minute-accurate reminders. If access is denied, reminders remain pending until you grant the app access from the Alarms & reminders settings.
 - **Photos and camera**: selection uses the system photo picker and capture uses the system camera. Saved images are copied into app-private storage.
 
 The app does not create an account, sync data, or send medication data off-device.

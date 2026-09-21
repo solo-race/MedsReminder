@@ -32,32 +32,46 @@ class ReminderScheduler(
 ) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
-    suspend fun scheduleAll() {
+    suspend fun scheduleAll(): ScheduleResult {
+        if (!canScheduleExactAlarms()) return ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
+
         for (dose in repository.activeScheduledDoses()) {
-            schedule(dose)
+            if (schedule(dose) == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                return ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
+            }
         }
+        return ScheduleResult.SCHEDULED
     }
 
-    suspend fun schedule(dose: ScheduledDose) {
+    suspend fun schedule(dose: ScheduledDose): ScheduleResult =
         scheduleAfter(dose, Instant.now())
-    }
 
-    suspend fun scheduleAfter(dose: ScheduledDose, boundary: Instant) {
+    suspend fun scheduleAfter(dose: ScheduledDose, boundary: Instant): ScheduleResult {
+        if (!canScheduleExactAlarms()) return ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
+
         val occurrence = nextUndecidedOccurrence(dose, boundary) { candidate ->
             repository.hasDoseDecisionOnLocalDay(
                 candidate.doseTimeId,
                 candidate.scheduledFor,
                 candidate.zoneId,
             )
-        } ?: return
-        scheduleAt(dose, occurrence)
+        } ?: return ScheduleResult.SCHEDULED
+        return if (scheduleAt(occurrence)) {
+            ScheduleResult.SCHEDULED
+        } else {
+            ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
+        }
     }
 
-    private fun scheduleAt(dose: ScheduledDose, occurrence: DoseOccurrence) {
+    private fun scheduleAt(occurrence: DoseOccurrence): Boolean {
+        // SCHEDULE_EXACT_ALARM is special access on Android 12+. It may be revoked
+        // between the initial check and this call, so keep the guard at the API
+        // boundary and treat the resulting SecurityException as waiting for access.
+        if (!canScheduleExactAlarms()) return false
         val triggerAt = occurrence.scheduledFor
         val showIntent = PendingIntent.getActivity(
             context,
-            requestCode(dose.doseTimeId, SHOW_INTENT_OFFSET),
+            requestCode(occurrence.doseTimeId, SHOW_INTENT_OFFSET),
             Intent(context, MainActivity::class.java)
                 .putExtra(MainActivity.EXTRA_MEDICATION_ID, occurrence.medicationId)
                 .putExtra(MainActivity.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
@@ -67,10 +81,15 @@ class ReminderScheduler(
         )
         // setAlarmClock dispatches at the exact millisecond even under OEM alarm batching and Doze,
         // unlike setExactAndAllowWhileIdle which ColorOS widens into a 1-hour window.
-        alarmManager.setAlarmClock(
-            AlarmManager.AlarmClockInfo(triggerAt.toEpochMilli(), showIntent),
-            reminderPendingIntent(dose, triggerAt.toEpochMilli()),
-        )
+        return try {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(triggerAt.toEpochMilli(), showIntent),
+                reminderPendingIntent(occurrence),
+            )
+            true
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     fun cancel(doseTimeId: Long) {
@@ -89,16 +108,16 @@ class ReminderScheduler(
     fun canScheduleExactAlarms(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
 
-    fun reminderPendingIntent(dose: ScheduledDose, scheduledFor: Long): PendingIntent =
+    fun reminderPendingIntent(occurrence: DoseOccurrence): PendingIntent =
         PendingIntent.getBroadcast(
             context,
-            requestCode(dose.doseTimeId, 0),
+            requestCode(occurrence.doseTimeId, 0),
             Intent(context, ReminderReceiver::class.java)
-                .setAction("${ReminderReceiver.ACTION_REMIND}.${dose.doseTimeId}")
-                .putExtra(ReminderReceiver.EXTRA_MEDICATION_ID, dose.medicationId)
-                .putExtra(ReminderReceiver.EXTRA_DOSE_TIME_ID, dose.doseTimeId)
-                .putExtra(ReminderReceiver.EXTRA_SCHEDULED_FOR, scheduledFor)
-                .putExtra(ReminderReceiver.EXTRA_ZONE_ID, dose.zoneId.id),
+                .setAction("${ReminderReceiver.ACTION_REMIND}.${occurrence.doseTimeId}")
+                .putExtra(ReminderReceiver.EXTRA_MEDICATION_ID, occurrence.medicationId)
+                .putExtra(ReminderReceiver.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
+                .putExtra(ReminderReceiver.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
+                .putExtra(ReminderReceiver.EXTRA_ZONE_ID, occurrence.zoneId.id),
             PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag(),
         )
 
@@ -114,4 +133,9 @@ class ReminderScheduler(
             0
         }
     }
+}
+
+enum class ScheduleResult {
+    SCHEDULED,
+    WAITING_FOR_EXACT_ALARM_PERMISSION,
 }
