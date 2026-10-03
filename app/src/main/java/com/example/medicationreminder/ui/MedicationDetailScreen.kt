@@ -226,7 +226,7 @@ internal fun MedicationDetailScreen(
                     if (actionable) {
                         // Full-width actions also work at large font scales without horizontal clipping.
                         Button(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
-                            val currentState = doseState ?: return@Button
+                            val currentState = doseState
                             val occurrence = currentState.occurrence ?: return@Button
                             viewModel.decideDose(occurrence, DoseStatus.TAKEN) { result ->
                                 state = when (result) {
@@ -237,7 +237,7 @@ internal fun MedicationDetailScreen(
                             }
                         }) { Text(stringResource(R.string.detail_take_action), textAlign = TextAlign.Center) }
                         OutlinedButton(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
-                            val currentState = doseState ?: return@OutlinedButton
+                            val currentState = doseState
                             val occurrence = currentState.occurrence ?: return@OutlinedButton
                             viewModel.decideDose(occurrence, DoseStatus.SKIPPED) { result ->
                                 state = when (result) {

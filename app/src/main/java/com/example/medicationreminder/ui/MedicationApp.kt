@@ -483,6 +483,8 @@ private fun SettingsScreen(
     onRepostMissedRemindersChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val autostartFallback = stringResource(R.string.autostart_fallback)
+    val autostartUnavailable = stringResource(R.string.autostart_unavailable)
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var notificationsAllowed by remember {
         mutableStateOf(
@@ -546,8 +548,7 @@ private fun SettingsScreen(
                     if (result != AutostartSettingsResult.OEM_SCREEN) {
                         android.widget.Toast.makeText(
                             context,
-                            context.getString(if (result == AutostartSettingsResult.UNAVAILABLE)
-                                R.string.autostart_unavailable else R.string.autostart_fallback),
+                            if (result == AutostartSettingsResult.UNAVAILABLE) autostartUnavailable else autostartFallback,
                             android.widget.Toast.LENGTH_LONG,
                         ).show()
                     }

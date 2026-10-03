@@ -14,7 +14,7 @@ Work branch: `codex/fix-autostart-detail-readability`.
 - Passed: resource XML parsing, duplicate-resource and English/Chinese resource-key parity checks; new UI resource-reference check; `git diff --check`.
 - Added but NOT RUN: Robolectric OEM success/failure/fallback tests, locale/time/day display tests. Existing occurrence/navigation tests retained.
 - `testDebugUnitTest assembleDebug lintDebug` could not start: the cloud environment cannot fetch the pinned Gradle 9.5.0 distribution (`java.net.SocketException: Network is unreachable`). No Android SDK is available at the standard cloud SDK locations checked. No dependency versions were changed to hide this limitation.
-- Compilation, Android lint, unit tests and visual/device acceptance remain pending. No APK has been produced.
+- Compilation, Android lint, unit tests and visual/device acceptance remain pending. The initial GitHub Actions run subsequently compiled production and test sources, completed unit tests and assembled the debug APK, but failed Compose lint on a new resource lookup. This was corrected to use stringResource; the follow-up CI result is pending. No APK was downloaded or installed.
 
 ## Required device checks
 
