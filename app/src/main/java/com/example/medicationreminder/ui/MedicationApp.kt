@@ -538,6 +538,24 @@ private fun SettingsScreen(
         }
         item {
             SettingCard(
+                title = stringResource(R.string.autostart_title),
+                description = stringResource(R.string.autostart_description),
+                action = stringResource(R.string.autostart_open),
+                onAction = {
+                    val result = openAutostartSettings(context)
+                    if (result != AutostartSettingsResult.OEM_SCREEN) {
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(if (result == AutostartSettingsResult.UNAVAILABLE)
+                                R.string.autostart_unavailable else R.string.autostart_fallback),
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                },
+            )
+        }
+        item {
+            SettingCard(
                 title = stringResource(R.string.lockscreen_guidance_title),
                 description = stringResource(R.string.lockscreen_guidance_description),
                 action = stringResource(R.string.open_notification_settings),

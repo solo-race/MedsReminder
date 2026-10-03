@@ -92,4 +92,19 @@
     <string name="exact_alarm_dialog_go_settings">打开“闹钟和提醒”</string>
     <string name="repost_missed_title">补发错过的提醒</string>
     <string name="repost_missed_description">提醒触发时，同时恢复仍在等待确认的过期提醒，例如被系统清除的情况。</string>
+    <string name="autostart_title">自启动与后台运行</string>
+    <string name="autostart_description">部分手机会在应用关闭后阻止提醒。请在系统设置中允许本应用自启动和后台运行。OPPO / ColorOS 可查找“应用 → 自启动”或“应用耗电管理”。应用无法读取或更改该开关，请手动确认。</string>
+    <string name="autostart_open">前往自启动设置</string>
+    <string name="autostart_fallback">请在系统设置中查找“自启动”“应用启动管理”或“后台运行”，名称因机型而异。</string>
+    <string name="autostart_unavailable">无法打开设置，请手动打开手机设置，搜索“自启动”或“后台运行”。</string>
+    <string name="detail_every_day">每天</string>
+    <string name="detail_times_label">提醒时间</string>
+    <string name="detail_weekdays_label">重复日期</string>
+    <string name="detail_no_times">暂无启用的提醒时间</string>
+    <string name="detail_no_days">未选择重复日期</string>
+    <string name="detail_reminder_heading">本次提醒</string>
+    <string name="detail_next_heading">下一次服药</string>
+    <string name="detail_take_action">标记已服用</string>
+    <string name="detail_skip_action">跳过本次</string>
+    <string name="detail_photo_description">药物照片</string>
 </resources>
