@@ -1,0 +1,22 @@
+# Architecture Index
+
+This directory indexes architecture-relevant feature work and the implementation plans that define cross-layer contracts.
+
+## Default reading order
+
+Before making architecture or feature implementation decisions, read the repository review archive first: [`../review/README.md`](../review/README.md). Its **Latest review** pointer is the authoritative entry point to the most recent review and must be read by default before relying on older plans or assumptions.
+
+After the latest review, use this architecture index and then the relevant feature implementation plan.
+
+## Architecture and feature index
+
+| Feature / source | Architecture focus | Implementation plan / entry point | Status |
+| --- | --- | --- | --- |
+| Review archive | Time-locked architecture, implementation, and regression reviews; latest findings override older review assumptions when they conflict | [`../review/README.md`](../review/README.md) — read **Latest review** first | Active / canonical review entry point |
+| Medication Detail + pre-alarm dose decisions | Stable dose-slot identity, explicit occurrence identity, transactional dose decisions, decision-aware AlarmManager scheduling and receiver guards | [`../feature-plans/medication-detail-dose-actions/README.md`](../feature-plans/medication-detail-dose-actions/README.md) | Implemented through Phase 6; all phase Review Gates passed. The 2026-09-13 device smoke found a blocking notification-entry defect; the correction (`5e28a09`, `0caed66`) is automated-verified (88 unit tests, lint 0 errors) and device-verified (`../review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`) — branch remains active and unmerged pending the merge decision. |
+
+## Current feature contract
+
+The medication-detail feature keeps the existing editor architecture and uses persisted dose decisions as the correctness boundary: AlarmManager state may be cancelled/rescheduled, but reminder delivery must always consult persisted decision state before displaying a reminder. The Phase 4 review established that the local-day decision identity itself must also be persisted rather than reconstructed from the current schedule zone. A minimal Room v2→v3 migration therefore adds a stable logical local-day key to `dose_events`; this is a correctness migration, not an unrelated schema expansion.
+
+For current findings and corrections to assumptions, read the latest archived review first. For implementation sequencing, invariants, race handling, and verification scenarios, then use the linked feature plan as the working source of truth until the feature is merged and the stable architecture is folded into permanent architecture documentation.

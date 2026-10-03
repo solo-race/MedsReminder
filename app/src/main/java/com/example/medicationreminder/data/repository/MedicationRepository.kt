@@ -6,7 +6,9 @@ import com.example.medicationreminder.data.local.DoseTimeEntity
 import com.example.medicationreminder.data.local.MedicationDatabase
 import com.example.medicationreminder.data.local.MedicationEntity
 import com.example.medicationreminder.data.local.MedicationScheduleEntity
+import com.example.medicationreminder.domain.model.DoseDecisionResult
 import com.example.medicationreminder.domain.model.DoseEvent
+import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.DoseTime
 import com.example.medicationreminder.domain.model.Medication
@@ -29,22 +31,87 @@ interface MedicationRepository {
     suspend fun saveMedication(draft: MedicationDraft): SaveMedicationResult
     suspend fun deleteMedication(medicationId: Long): String?
     suspend fun activeScheduledDoses(): List<ScheduledDose>
-    suspend fun recordDose(
-        medicationId: Long,
-        doseTimeId: Long,
-        scheduledFor: Instant,
-        status: DoseStatus,
-    )
     suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean
     suspend fun setScheduleToDeviceTime(scheduleId: Long)
     suspend fun manualSchedules(): List<MedicationSchedule>
 }
 
+internal interface DoseDecisionRepository {
+    suspend fun decideDose(occurrence: DoseOccurrence, status: DoseStatus): DoseDecisionResult
+}
+
 data class SaveMedicationResult(val medicationId: Long, val replacedPhotoPath: String?)
 
-class RoomMedicationRepository(
+internal data class DoseTimeReconciliation(
+    val toInsert: List<DoseTimeEntity>,
+    val toUpdate: List<DoseTimeEntity>,
+    val idsToDelete: List<Long>,
+)
+
+internal fun reconcileDoseTimes(
+    scheduleId: Long,
+    existing: List<DoseTimeEntity>,
+    desiredMinutes: List<Int>,
+): DoseTimeReconciliation {
+    val desired = desiredMinutes.distinct().sorted()
+    val existingByMinute = existing.groupBy { it.minuteOfDay }
+    val retainedIds = mutableSetOf<Long>()
+    val toInsert = mutableListOf<DoseTimeEntity>()
+    val toUpdate = mutableListOf<DoseTimeEntity>()
+
+    desired.forEach { minuteOfDay ->
+        val retained = existingByMinute[minuteOfDay].orEmpty().minByOrNull { it.id }
+        if (retained == null) {
+            toInsert += DoseTimeEntity(
+                scheduleId = scheduleId,
+                minuteOfDay = minuteOfDay,
+                enabled = true,
+            )
+        } else {
+            retainedIds += retained.id
+            if (!retained.enabled) {
+                toUpdate += retained.copy(enabled = true)
+            }
+        }
+    }
+
+    val idsToDelete = existing.asSequence()
+        .filter { it.id !in retainedIds }
+        .map { it.id }
+        .sorted()
+        .toList()
+
+    return DoseTimeReconciliation(
+        toInsert = toInsert,
+        toUpdate = toUpdate,
+        idsToDelete = idsToDelete,
+    )
+}
+
+internal fun isOccurrenceActionable(
+    medication: MedicationEntity?,
+    schedule: MedicationScheduleEntity?,
+    doseTime: DoseTimeEntity?,
+    occurrence: DoseOccurrence,
+): Boolean {
+    if (medication == null || !medication.enabled || medication.id != occurrence.medicationId) return false
+    if (schedule == null || schedule.medicationId != medication.id) return false
+    if (doseTime == null || !doseTime.enabled || doseTime.id != occurrence.doseTimeId || doseTime.scheduleId != schedule.id) return false
+
+    val zoneId = schedule.toDomain().zoneId()
+    if (zoneId != occurrence.zoneId) return false
+
+    val occurrenceDate = occurrence.scheduledFor.atZone(zoneId).toLocalDate()
+    if (occurrenceDate.dayOfWeek !in schedule.weekdaysMask.toWeekdays()) return false
+
+    val scheduledTime = LocalTime.of(doseTime.minuteOfDay / 60, doseTime.minuteOfDay % 60)
+    val expectedInstant = occurrenceDate.atTime(scheduledTime).atZone(zoneId).toInstant()
+    return expectedInstant == occurrence.scheduledFor
+}
+
+internal class RoomMedicationRepository(
     private val database: MedicationDatabase,
-) : MedicationRepository {
+) : MedicationRepository, DoseDecisionRepository {
     private val medicationDao = database.medicationDao()
     private val scheduleDao = database.scheduleDao()
     private val doseTimeDao = database.doseTimeDao()
@@ -136,12 +203,22 @@ class RoomMedicationRepository(
             )
             existingSchedule.id
         }
-        doseTimeDao.deleteForSchedule(scheduleId)
-        doseTimeDao.insertAll(
-            draft.times.distinct().sorted().map {
-                DoseTimeEntity(scheduleId = scheduleId, minuteOfDay = it.toMinuteOfDay(), enabled = true)
-            },
+
+        val reconciliation = reconcileDoseTimes(
+            scheduleId = scheduleId,
+            existing = doseTimeDao.getForSchedule(scheduleId),
+            desiredMinutes = draft.times.map { it.toMinuteOfDay() },
         )
+        if (reconciliation.idsToDelete.isNotEmpty()) {
+            doseTimeDao.deleteByIds(reconciliation.idsToDelete)
+        }
+        if (reconciliation.toUpdate.isNotEmpty()) {
+            doseTimeDao.updateAll(reconciliation.toUpdate)
+        }
+        if (reconciliation.toInsert.isNotEmpty()) {
+            doseTimeDao.insertAll(reconciliation.toInsert)
+        }
+
         SaveMedicationResult(medicationId, old?.photoPath?.takeIf { it != draft.existingPhotoPath })
     }
 
@@ -178,30 +255,45 @@ class RoomMedicationRepository(
         }
     }
 
-    override suspend fun recordDose(
-        medicationId: Long,
-        doseTimeId: Long,
-        scheduledFor: Instant,
-        status: DoseStatus,
-    ) = database.withTransaction {
-        val now = System.currentTimeMillis()
-        doseEventDao.insertOrReplace(
-            DoseEventEntity(
-                medicationId = medicationId,
-                doseTimeId = doseTimeId,
-                scheduledForEpochMillis = scheduledFor.toEpochMilli(),
-                status = status,
-                actionedAtEpochMillis = now,
-            ),
-        )
-        doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
-    }
+    override suspend fun decideDose(occurrence: DoseOccurrence, status: DoseStatus): DoseDecisionResult =
+        database.withTransaction {
+            val medication = medicationDao.getById(occurrence.medicationId)
+            val schedule = scheduleDao.getForMedication(occurrence.medicationId)
+            val doseTime = doseTimeDao.getById(occurrence.doseTimeId)
+            if (!isOccurrenceActionable(medication, schedule, doseTime, occurrence)) {
+                return@withTransaction DoseDecisionResult.StaleOccurrence
+            }
+
+            val scheduledLocalEpochDay = occurrence.scheduledFor
+                .atZone(occurrence.zoneId)
+                .toLocalDate()
+                .toEpochDay()
+            val existing = doseEventDao.firstForLogicalDay(
+                occurrence.doseTimeId,
+                scheduledLocalEpochDay,
+            )
+            if (existing != null) {
+                return@withTransaction DoseDecisionResult.AlreadyDecided(existing.status)
+            }
+
+            val now = System.currentTimeMillis()
+            doseEventDao.insert(
+                DoseEventEntity(
+                    medicationId = occurrence.medicationId,
+                    doseTimeId = occurrence.doseTimeId,
+                    scheduledForEpochMillis = occurrence.scheduledFor.toEpochMilli(),
+                    scheduledLocalEpochDay = scheduledLocalEpochDay,
+                    status = status,
+                    actionedAtEpochMillis = now,
+                ),
+            )
+            doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
+            DoseDecisionResult.Recorded(status)
+        }
 
     override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
-        val day = scheduledFor.atZone(zoneId).toLocalDate()
-        val from = day.atStartOfDay(zoneId).toInstant().toEpochMilli()
-        val to = day.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1
-        return doseEventDao.existsForOnLocalDay(doseTimeId, from, to)
+        val scheduledLocalEpochDay = scheduledFor.atZone(zoneId).toLocalDate().toEpochDay()
+        return doseEventDao.existsForLogicalDay(doseTimeId, scheduledLocalEpochDay)
     }
 
     override suspend fun setScheduleToDeviceTime(scheduleId: Long) {

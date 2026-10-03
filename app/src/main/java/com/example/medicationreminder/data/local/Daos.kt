@@ -2,7 +2,6 @@ package com.example.medicationreminder.data.local
 
 import androidx.room.Dao
 import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -54,17 +53,23 @@ interface DoseTimeDao {
     @Query("SELECT * FROM dose_times")
     fun observeAll(): Flow<List<DoseTimeEntity>>
 
+    @Query("SELECT * FROM dose_times WHERE id = :id")
+    suspend fun getById(id: Long): DoseTimeEntity?
+
     @Query("SELECT * FROM dose_times WHERE scheduleId = :scheduleId")
     suspend fun getForSchedule(scheduleId: Long): List<DoseTimeEntity>
 
     @Query("SELECT * FROM dose_times")
     suspend fun getAll(): List<DoseTimeEntity>
 
-    @Query("DELETE FROM dose_times WHERE scheduleId = :scheduleId")
-    suspend fun deleteForSchedule(scheduleId: Long)
+    @Query("DELETE FROM dose_times WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
 
     @Insert
     suspend fun insertAll(times: List<DoseTimeEntity>)
+
+    @Update
+    suspend fun updateAll(times: List<DoseTimeEntity>)
 }
 
 data class DoseEventRow(
@@ -89,8 +94,8 @@ interface DoseEventDao {
     )
     fun observeAllWithMedication(): Flow<List<DoseEventRow>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOrReplace(event: DoseEventEntity)
+    @Insert
+    suspend fun insert(event: DoseEventEntity)
 
     @Query("DELETE FROM dose_events WHERE actionedAtEpochMillis < :cutoffEpochMillis")
     suspend fun deleteOlderThan(cutoffEpochMillis: Long)
@@ -100,9 +105,20 @@ interface DoseEventDao {
 
     @Query(
         """
-        SELECT EXISTS(SELECT 1 FROM dose_events
-        WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis BETWEEN :fromInclusive AND :toInclusive)
+        SELECT * FROM dose_events
+        WHERE doseTimeId = :doseTimeId
+          AND scheduledLocalEpochDay = :scheduledLocalEpochDay
+        ORDER BY actionedAtEpochMillis ASC, id ASC
+        LIMIT 1
         """
     )
-    suspend fun existsForOnLocalDay(doseTimeId: Long, fromInclusive: Long, toInclusive: Long): Boolean
+    suspend fun firstForLogicalDay(doseTimeId: Long, scheduledLocalEpochDay: Long): DoseEventEntity?
+
+    @Query(
+        """
+        SELECT EXISTS(SELECT 1 FROM dose_events
+        WHERE doseTimeId = :doseTimeId AND scheduledLocalEpochDay = :scheduledLocalEpochDay)
+        """
+    )
+    suspend fun existsForLogicalDay(doseTimeId: Long, scheduledLocalEpochDay: Long): Boolean
 }

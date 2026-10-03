@@ -8,6 +8,18 @@ Single-module Kotlin/Compose Android app under `app/`: Room persistence, private
 
 `local.properties` is machine-specific (SDK path) and intentionally ignored, as are generated `.gradle/`, `.kotlin/`, `build/`, and `app/build/` outputs.
 
+## Documentation entry points
+
+Use these repository documents as the default context before implementation or review work:
+
+1. `docs/review/README.md` — canonical review archive index. **Always follow and read its `Latest review` pointer first** before making architecture or feature implementation decisions. New reviews are archived as timestamp-locked documents; do not overwrite or retitle older reviews.
+2. `docs/architecture/README.md` — architecture index and cross-layer contracts. It also links back to the canonical review archive and records the default reading order.
+3. `docs/feature-plans/` — feature-specific implementation plans. Read the relevant plan after the latest review and architecture index; if a newer review corrects an older plan assumption, update the plan before implementation proceeds.
+4. `docs/memory.md` — verification evidence, project history, device setup notes, and backlog.
+5. `docs/operations.md` — command-environment problems, Gradle/adb operational rules, and workstation-specific fixes.
+
+For review work, create a new file under `docs/review/` using the review time in Singapore time (`Asia/Singapore`) in both filename and H1 title, then update `docs/review/README.md` so its `Latest review` pointer references that new document in the same change.
+
 ## Tooling (verified on this workstation)
 
 Android Studio `D:\AndroidStudio` (bundled JDK `D:\AndroidStudio\jbr`), Android SDK `%LOCALAPPDATA%\Android\Sdk` (Platform 37.0), Gradle `9.5.0`, AGP `9.3.0`, Kotlin `2.3.10`, KSP `2.3.11`.
@@ -24,6 +36,7 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
 | `codex/feature-notification-guidance` | `40afac8` | Merged into master (`40afac8`, v0.018). |
 | `codex/feature-repost-missed-reminders` | `4dc52ee` | v0.019: Settings-gated self-heal re-posting; suite + device verified. |
+|`codex/feature-medication-detail-dose-actions`|`0caed66`|Active; Phases 1–6 Review Gates passed. Device smoke 2026-09-13 (`docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`) → CHANGES REQUIRED: a reminder opened while the app is already running lost its explicit occurrence and did not navigate. Correction: `5e28a09` (ViewModel-bound occurrence + `onNewIntent` ingress) and `0caed66` (`launchMode="singleTop"`, without which the warm intent never reaches the app on PLB110/ColorOS); automated gate green (88 tests, lint 0 errors) and device-verified 2026-09-14 for foreground, background, real-notification-tap, rotation, repeated delivery, and cold delivery (`docs/review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`). Do not merge, modify `master`, create/merge PRs, or close the feature without explicit authorization.|
 
 ## Verification
 

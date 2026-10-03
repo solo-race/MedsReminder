@@ -3,7 +3,11 @@ package com.example.medicationreminder.reminders
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.example.medicationreminder.appContainer
+import com.example.medicationreminder.domain.model.DoseOccurrence
+import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -11,31 +15,44 @@ import kotlinx.coroutines.launch
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val medicationId = intent.getLongExtra(EXTRA_MEDICATION_ID, -1)
-        val doseTimeId = intent.getLongExtra(EXTRA_DOSE_TIME_ID, -1)
-        val scheduledFor = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1)
-        if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0) return
+        val occurrence = intent.toDoseOccurrenceOrNull() ?: return
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                val currentDose = container.repository.activeScheduledDoses()
-                    .firstOrNull { it.medicationId == medicationId && it.doseTimeId == doseTimeId }
-                if (currentDose != null) {
-                    container.notifications.showReminder(
-                        medicationId = medicationId,
-                        doseTimeId = doseTimeId,
-                        scheduledFor = scheduledFor,
-                        alias = currentDose.medicationAlias,
-                        dosage = currentDose.dosageText,
-                    )
-                    // One alarm per dose is kept in the system. Schedule tomorrow/next weekday after firing.
-                    container.scheduler.schedule(currentDose)
-                }
+                handleFiredOccurrence(
+                    occurrence = occurrence,
+                    activeDoses = container.repository.activeScheduledDoses(),
+                    isDecided = {
+                        container.repository.hasDoseDecisionOnLocalDay(
+                            occurrence.doseTimeId,
+                            occurrence.scheduledFor,
+                            occurrence.zoneId,
+                        )
+                    },
+                    showReminder = { dose ->
+                        container.notifications.showReminder(
+                            occurrence = occurrence,
+                            alias = dose.medicationAlias,
+                            dosage = dose.dosageText,
+                        )
+                    },
+                    cancelVisibleReminder = {
+                        container.notifications.cancelReminder(occurrence.doseTimeId)
+                    },
+                    scheduleFollowing = { dose, boundary ->
+                        val result = container.scheduler.scheduleAfter(dose, boundary)
+                        if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
+                            Log.i(TAG, "Next reminder after delivery is waiting for exact-alarm access")
+                        }
+                    },
+                )
                 // Optional self-heal: restore reminders the system cleared while the process was frozen.
                 if (container.preferences.repostMissedReminders.first()) {
                     container.missedReminderReposter.repostUndecidedOverdue()
                 }
+            } catch (error: Exception) {
+                Log.e(TAG, "Unable to deliver reminder occurrence and schedule its successor", error)
             } finally {
                 pendingResult.finish()
             }
@@ -47,6 +64,20 @@ class ReminderReceiver : BroadcastReceiver() {
         const val EXTRA_MEDICATION_ID = "medication_id"
         const val EXTRA_DOSE_TIME_ID = "dose_time_id"
         const val EXTRA_SCHEDULED_FOR = "scheduled_for"
+        const val EXTRA_ZONE_ID = "zone_id"
+
+        fun Intent.toDoseOccurrenceOrNull(): DoseOccurrence? {
+            val medicationId = getLongExtra(EXTRA_MEDICATION_ID, -1)
+            val doseTimeId = getLongExtra(EXTRA_DOSE_TIME_ID, -1)
+            val scheduledFor = getLongExtra(EXTRA_SCHEDULED_FOR, -1)
+            val zoneId = runCatching { ZoneId.of(getStringExtra(EXTRA_ZONE_ID).orEmpty()) }.getOrNull()
+            if (medicationId < 0 || doseTimeId < 0 || scheduledFor < 0 || zoneId == null) {
+                Log.w(TAG, "Ignoring reminder broadcast with incomplete occurrence identity")
+                return null
+            }
+            return DoseOccurrence(medicationId, doseTimeId, Instant.ofEpochMilli(scheduledFor), zoneId)
+        }
+
+        private const val TAG = "ReminderReceiver"
     }
 }
-

@@ -12,8 +12,8 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
-import android.content.res.Configuration
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -82,14 +82,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.medicationreminder.MainActivity
 import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
@@ -111,13 +110,15 @@ private object Routes {
     const val HOME = "home"
     const val HISTORY = "history"
     const val SETTINGS = "settings"
+    const val DETAIL = "medication/{medicationId}"
     const val EDIT_NEW = "edit/new"
     const val EDIT = "edit/{medicationId}"
+    fun detail(id: Long) = "medication/$id"
     fun edit(id: Long) = "edit/$id"
 }
 
 @Composable
-fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long) {
+fun MedicationApp(viewModel: MedicationViewModel) {
     val language by viewModel.language.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val localizedContext = remember(language) { context.withAppLanguage(language) }
@@ -131,7 +132,7 @@ fun MedicationApp(viewModel: MedicationViewModel, notificationMedicationId: Long
         LocalContext provides localizedContext,
         LocalConfiguration provides localizedConfiguration,
     ) {
-        MedicationAppContent(viewModel, notificationMedicationId, language)
+        MedicationAppContent(viewModel, language)
     }
 }
 
@@ -139,10 +140,6 @@ private fun Context.withAppLanguage(language: AppLanguage): Context {
     val configuration = Configuration(resources.configuration)
     configuration.setLocale(Locale.forLanguageTag(language.languageTag))
     val localizedResources = createConfigurationContext(configuration).resources
-    // Wrap the Activity, not the configuration context: activity-bound calls resolve
-    // through the context chain (dialog window tokens via getSystemService(WINDOW_SERVICE),
-    // startActivity, owner lookups like LocalActivityResultRegistryOwner). Only Resources
-    // need localizing for stringResource / LocalConfiguration.
     return object : ContextWrapper(this) {
         override fun getResources(): android.content.res.Resources = localizedResources
     }
@@ -151,16 +148,16 @@ private fun Context.withAppLanguage(language: AppLanguage): Context {
 @Composable
 private fun MedicationAppContent(
     viewModel: MedicationViewModel,
-    notificationMedicationId: Long,
     language: AppLanguage,
 ) {
     val navController = rememberNavController()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val reminderEntry by viewModel.reminderEntry.collectAsStateWithLifecycle()
+    val reminderOccurrence by viewModel.reminderOccurrence.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val errorMessage = error?.let { stringResource(it) }
     val snackbarHost = remember { SnackbarHostState() }
-    var openedNotificationTarget by remember { mutableStateOf(false) }
 
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -168,21 +165,39 @@ private fun MedicationAppContent(
             viewModel.clearError()
         }
     }
-    LaunchedEffect(notificationMedicationId, plans) {
-        if (!openedNotificationTarget && notificationMedicationId >= 0 && plans.any { it.medication.id == notificationMedicationId }) {
-            openedNotificationTarget = true
-            navController.navigate(Routes.edit(notificationMedicationId))
-        }
+    LaunchedEffect(reminderEntry) {
+        val opened = viewModel.reminderEntryOpened() ?: return@LaunchedEffect
+        navController.navigate(Routes.detail(opened.medicationId)) { launchSingleTop = true }
     }
 
     val context = LocalContext.current
     val permissionPromptDismissed by viewModel.permissionPromptDismissed.collectAsStateWithLifecycle()
+    val exactAlarmPromptDismissed by viewModel.exactAlarmPromptDismissed.collectAsStateWithLifecycle()
     val repostMissedReminders by viewModel.repostMissedReminders.collectAsStateWithLifecycle()
+    var exactAlarmAllowed by remember { mutableStateOf(canScheduleExactAlarms(context)) }
     var showPermissionDialog by remember { mutableStateOf(false) }
-    LaunchedEffect(permissionPromptDismissed) {
+    var showExactAlarmDialog by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        val wasExactAlarmAllowed = exactAlarmAllowed
+        exactAlarmAllowed = canScheduleExactAlarms(context)
+        if (exactAlarmPermissionRestored(wasExactAlarmAllowed, exactAlarmAllowed)) {
+            viewModel.onExactAlarmPermissionRestored()
+        }
+        onPauseOrDispose { }
+    }
+    LaunchedEffect(permissionPromptDismissed, exactAlarmPromptDismissed, exactAlarmAllowed) {
         val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        if (!canNotify && !permissionPromptDismissed) showPermissionDialog = true
+        when {
+            !canNotify && !permissionPromptDismissed -> {
+                showPermissionDialog = true
+                showExactAlarmDialog = false
+            }
+            !exactAlarmAllowed && !exactAlarmPromptDismissed -> {
+                showPermissionDialog = false
+                showExactAlarmDialog = true
+            }
+        }
     }
     if (showPermissionDialog) {
         AlertDialog(
@@ -207,6 +222,29 @@ private fun MedicationAppContent(
             },
         )
     }
+    if (showExactAlarmDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.dismissExactAlarmPrompt()
+                showExactAlarmDialog = false
+            },
+            title = { Text(stringResource(R.string.exact_alarm_dialog_title)) },
+            text = { Text(stringResource(R.string.exact_alarm_dialog_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissExactAlarmPrompt()
+                    showExactAlarmDialog = false
+                    openExactAlarmSettings(context)
+                }) { Text(stringResource(R.string.exact_alarm_dialog_go_settings)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissExactAlarmPrompt()
+                    showExactAlarmDialog = false
+                }) { Text(stringResource(R.string.permission_dialog_skip)) }
+            },
+        )
+    }
 
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
@@ -220,7 +258,14 @@ private fun MedicationAppContent(
                     ) { Text(stringResource(R.string.add_medication)) }
                 },
             ) { padding ->
-                HomeScreen(plans, Modifier.padding(padding), onEdit = { navController.navigate(Routes.edit(it)) })
+                HomeScreen(
+                    plans = plans,
+                    modifier = Modifier.padding(padding),
+                    onOpenDetail = { medicationId ->
+                        viewModel.clearReminderOccurrence()
+                        navController.navigate(Routes.detail(medicationId))
+                    },
+                )
             }
         }
         composable(Routes.HISTORY) {
@@ -244,6 +289,19 @@ private fun MedicationAppContent(
                     onRepostMissedRemindersChanged = viewModel::setRepostMissedReminders,
                 )
             }
+        }
+        composable(
+            route = Routes.DETAIL,
+            arguments = listOf(navArgument("medicationId") { type = NavType.LongType }),
+        ) { entry ->
+            val id = entry.arguments?.getLong("medicationId") ?: return@composable
+            MedicationDetailScreen(
+                plan = plans.firstOrNull { it.medication.id == id },
+                explicitOccurrence = reminderOccurrence?.takeIf { it.medicationId == id },
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onEdit = { navController.navigate(Routes.edit(it)) },
+            )
         }
         composable(Routes.EDIT_NEW) {
             EditMedicationScreen(
@@ -312,7 +370,7 @@ private fun MainScaffold(
 }
 
 @Composable
-private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifier, onEdit: (Long) -> Unit) {
+private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifier, onOpenDetail: (Long) -> Unit) {
     val now by minuteTicker()
     val ordered = remember(plans, now) {
         plans.sortedBy { plan ->
@@ -340,20 +398,20 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
                 Text(stringResource(R.string.active_medication_schedule), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(ordered, key = { it.medication.id }) { plan ->
-                MedicationCard(plan, now, onEdit = onEdit)
+                MedicationCard(plan, now, onOpenDetail = onOpenDetail)
             }
         }
     }
 }
 
 @Composable
-private fun MedicationCard(plan: MedicationPlan, now: Instant, onEdit: (Long) -> Unit) {
+private fun MedicationCard(plan: MedicationPlan, now: Instant, onOpenDetail: (Long) -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
     val next = plan.times.mapNotNull { time ->
         NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
     }.minOrNull()
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onEdit(plan.medication.id) },
+        modifier = Modifier.fillMaxWidth().clickable { onOpenDetail(plan.medication.id) },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -426,7 +484,6 @@ private fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val alarms = remember { context.getSystemService(AlarmManager::class.java) }
     var notificationsAllowed by remember {
         mutableStateOf(
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -434,12 +491,12 @@ private fun SettingsScreen(
         )
     }
     var exactAllowed by remember {
-        mutableStateOf(Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms())
+        mutableStateOf(canScheduleExactAlarms(context))
     }
     LifecycleResumeEffect(Unit) {
         notificationsAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        exactAllowed = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarms.canScheduleExactAlarms()
+        exactAllowed = canScheduleExactAlarms(context)
         onPauseOrDispose { }
     }
     LazyColumn(
@@ -475,9 +532,7 @@ private fun SettingsScreen(
                     null
                 },
                 onAction = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).setData(Uri.parse("package:${context.packageName}")),
-                    )
+                    openExactAlarmSettings(context)
                 },
             )
         }
@@ -573,6 +628,29 @@ private fun openAppNotificationSettings(context: Context) {
         )
     }
 }
+
+private fun openExactAlarmSettings(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    try {
+        context.startActivity(
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                .setData(Uri.parse("package:${context.packageName}")),
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.parse("package:${context.packageName}")),
+        )
+    }
+}
+
+private fun canScheduleExactAlarms(context: Context): Boolean {
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+}
+
+internal fun exactAlarmPermissionRestored(wasAllowed: Boolean, isAllowed: Boolean): Boolean =
+    !wasAllowed && isAllowed
 
 @Composable
 private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationViewModel, onBack: () -> Unit) {

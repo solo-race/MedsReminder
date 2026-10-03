@@ -63,6 +63,19 @@ data class DoseEvent(
     val actionedAt: Instant,
 )
 
+data class DoseOccurrence(
+    val medicationId: Long,
+    val doseTimeId: Long,
+    val scheduledFor: Instant,
+    val zoneId: ZoneId,
+)
+
+sealed interface DoseDecisionResult {
+    data class Recorded(val status: DoseStatus) : DoseDecisionResult
+    data class AlreadyDecided(val status: DoseStatus) : DoseDecisionResult
+    data object StaleOccurrence : DoseDecisionResult
+}
+
 data class ScheduledDose(
     val medicationId: Long,
     val medicationName: String,
@@ -73,5 +86,11 @@ data class ScheduledDose(
     val weekdays: Set<DayOfWeek>,
     val zoneId: ZoneId,
     val medicationAlias: String?,
-)
-
+) {
+    fun occurrenceAt(scheduledFor: Instant): DoseOccurrence = DoseOccurrence(
+        medicationId = medicationId,
+        doseTimeId = doseTimeId,
+        scheduledFor = scheduledFor,
+        zoneId = zoneId,
+    )
+}
