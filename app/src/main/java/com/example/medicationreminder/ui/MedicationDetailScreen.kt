@@ -1,4 +1,7 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@file:OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+)
 
 package com.example.medicationreminder.ui
 
@@ -7,14 +10,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import java.time.DayOfWeek
+import java.time.LocalTime
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -144,91 +155,79 @@ internal fun MedicationDetailScreen(
         val actionable = doseState?.occurrence != null && doseState.stale.not() && doseState.decided.not()
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    plan.medication.photoPath?.let {
-                        DetailMedicationImage(Uri.fromFile(File(it)), Modifier.size(72.dp))
-                        Spacer(Modifier.width(14.dp))
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(plan.medication.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                        plan.medication.alias?.takeIf { it.isNotBlank() }?.let {
-                            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Text(plan.medication.dosageText, color = MaterialTheme.colorScheme.secondary)
-                    }
-                }
-            }
-            if (plan.medication.note.isNotBlank()) {
-                item {
-                    Text(stringResource(R.string.detail_note_label), fontWeight = FontWeight.Medium)
-                    Text(plan.medication.note, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            item {
-                Text(stringResource(R.string.detail_schedule_label), fontWeight = FontWeight.Medium)
-                Text(
-                    plan.schedule.weekdays.sortedBy { it.value }
-                        .joinToString(", ") { it.getDisplayName(TextStyle.SHORT, locale) },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    plan.times.filter { it.enabled }.sortedBy { it.time }
-                        .joinToString(", ") { it.time.format(detailTimeFormatter(locale)) },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    when (plan.schedule.timeZoneMode) {
-                        TimeZoneMode.DEVICE -> stringResource(R.string.detail_zone_device)
-                        TimeZoneMode.MANUAL -> stringResource(
-                            R.string.detail_zone_manual,
-                            plan.schedule.manualZoneId.orEmpty(),
-                        )
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            item {
-                Text(stringResource(R.string.detail_dose_label), fontWeight = FontWeight.Medium)
-                val occurrence = doseState?.occurrence
-                Text(
-                    when {
-                        doseState == null -> stringResource(R.string.detail_loading_dose)
-                        doseState.stale -> stringResource(R.string.detail_stale_occurrence)
-                        occurrence == null -> stringResource(R.string.detail_no_actionable_dose)
-                        else -> stringResource(
-                            if (explicitOccurrence != null) R.string.detail_reminder_occurrence else R.string.detail_next_occurrence,
-                            detailInstantFormatter(locale).format(occurrence.scheduledFor.atZone(occurrence.zoneId)),
-                        )
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (doseState?.decided == true) {
-                    Spacer(Modifier.height(8.dp))
-                    AssistChip(
-                        onClick = {},
-                        label = {
-                            Text(
-                                when (doseState.decidedStatus) {
-                                    DoseStatus.TAKEN -> stringResource(R.string.detail_taken_state)
-                                    DoseStatus.SKIPPED -> stringResource(R.string.detail_skipped_state)
-                                    null -> stringResource(R.string.detail_already_decided)
-                                },
+                DetailSection {
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        plan.medication.photoPath?.let {
+                            DetailMedicationImage(
+                                Uri.fromFile(File(it)),
+                                Modifier.size(80.dp).clip(RoundedCornerShape(16.dp)),
                             )
-                        },
-                    )
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(plan.medication.name, style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold)
+                            plan.medication.alias?.takeIf { it.isNotBlank() }?.let {
+                                Text(it, style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.amount_dosage),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            // Display exactly what the user entered; never infer a unit or medical dose.
+                            Text(plan.medication.dosageText, style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
-                        enabled = actionable,
-                        onClick = {
-                            val currentState = doseState ?: return@OutlinedButton
-                            val occurrence = currentState.occurrence ?: return@OutlinedButton
+                DetailSection {
+                    val occurrence = doseState?.occurrence
+                    Text(stringResource(if (explicitOccurrence != null) R.string.detail_reminder_heading
+                        else R.string.detail_next_heading), style = MaterialTheme.typography.titleMedium)
+                    if (doseState != null && !doseState.stale && occurrence != null) {
+                        val local = occurrence.scheduledFor.atZone(occurrence.zoneId)
+                        Text(formatDetailTime(local.toLocalTime(), locale),
+                            style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary)
+                        Text(detailDateFormatter(locale).format(local),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text(stringResource(when {
+                            doseState == null -> R.string.detail_loading_dose
+                            doseState.stale -> R.string.detail_stale_occurrence
+                            else -> R.string.detail_no_actionable_dose
+                        }), style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (doseState?.decided == true) {
+                        // A readable status, not a fake clickable chip or two almost invisible disabled buttons.
+                        Surface(color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(when (doseState.decidedStatus) {
+                                DoseStatus.TAKEN -> R.string.detail_taken_state
+                                DoseStatus.SKIPPED -> R.string.detail_skipped_state
+                                null -> R.string.detail_already_decided
+                            }), modifier = Modifier.padding(14.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
+                    }
+                    if (actionable) {
+                        // Full-width actions also work at large font scales without horizontal clipping.
+                        Button(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
+                            val currentState = doseState
+                            val occurrence = currentState.occurrence ?: return@Button
                             viewModel.decideDose(occurrence, DoseStatus.TAKEN) { result ->
                                 state = when (result) {
                                     is DoseDecisionResult.Recorded -> currentState.copy(decided = true, decidedStatus = result.status)
@@ -236,12 +235,9 @@ internal fun MedicationDetailScreen(
                                     DoseDecisionResult.StaleOccurrence -> currentState.copy(stale = true)
                                 }
                             }
-                        },
-                    ) { Text(stringResource(R.string.status_taken)) }
-                    OutlinedButton(
-                        enabled = actionable,
-                        onClick = {
-                            val currentState = doseState ?: return@OutlinedButton
+                        }) { Text(stringResource(R.string.detail_take_action), textAlign = TextAlign.Center) }
+                        OutlinedButton(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
+                            val currentState = doseState
                             val occurrence = currentState.occurrence ?: return@OutlinedButton
                             viewModel.decideDose(occurrence, DoseStatus.SKIPPED) { result ->
                                 state = when (result) {
@@ -250,11 +246,58 @@ internal fun MedicationDetailScreen(
                                     DoseDecisionResult.StaleOccurrence -> currentState.copy(stale = true)
                                 }
                             }
-                        },
-                    ) { Text(stringResource(R.string.status_skipped)) }
+                        }) { Text(stringResource(R.string.detail_skip_action), textAlign = TextAlign.Center) }
+                    }
+                }
+            }
+            item {
+                DetailSection {
+                    Text(stringResource(R.string.detail_schedule_label), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.detail_weekdays_label), style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(when {
+                        isEveryDay(plan.schedule.weekdays) -> stringResource(R.string.detail_every_day)
+                        plan.schedule.weekdays.isEmpty() -> stringResource(R.string.detail_no_days)
+                        else -> plan.schedule.weekdays.sortedBy { it.value }
+                            .joinToString(" · ") { it.getDisplayName(TextStyle.SHORT, locale) }
+                    }, style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.detail_times_label), style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val times = plan.times.filter { it.enabled }.sortedBy { it.time }
+                    if (times.isEmpty()) Text(stringResource(R.string.detail_no_times))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        times.forEach { slot ->
+                            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
+                                Text(formatDetailTime(slot.time, locale), Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    style = MaterialTheme.typography.titleMedium)
+                            }
+                        }
+                    }
+                    Text(when (plan.schedule.timeZoneMode) {
+                        TimeZoneMode.DEVICE -> stringResource(R.string.detail_zone_device)
+                        TimeZoneMode.MANUAL -> stringResource(R.string.detail_zone_manual, plan.schedule.manualZoneId.orEmpty())
+                    }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (plan.medication.note.isNotBlank()) {
+                item {
+                    DetailSection {
+                        Text(stringResource(R.string.detail_note_label), style = MaterialTheme.typography.titleMedium)
+                        Text(plan.medication.note, style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface)
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DetailSection(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
@@ -263,7 +306,8 @@ private fun DetailMedicationImage(uri: Uri, modifier: Modifier) {
     AndroidView(
         factory = { context ->
             android.widget.ImageView(context).apply {
-                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                contentDescription = context.getString(R.string.detail_photo_description)
             }
         },
         update = { it.setImageURI(uri) },
@@ -276,5 +320,12 @@ private fun com.example.medicationreminder.domain.model.MedicationSchedule.zoneI
     TimeZoneMode.MANUAL -> manualZoneId?.let(ZoneId::of) ?: ZoneId.systemDefault()
 }
 
-private fun detailTimeFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", locale)
-private fun detailInstantFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern("EEE, MMM d • h:mm a", locale)
+internal fun isEveryDay(days: Set<DayOfWeek>): Boolean = days.size == DayOfWeek.entries.size
+
+internal fun formatDetailTime(time: LocalTime, locale: Locale): String = time.format(
+    DateTimeFormatter.ofPattern(if (locale.language == "zh") "HH:mm" else "h:mm a", locale),
+)
+
+private fun detailDateFormatter(locale: Locale): DateTimeFormatter = DateTimeFormatter.ofPattern(
+    if (locale.language == "zh") "M月d日 EEEE" else "EEE, MMM d", locale,
+)

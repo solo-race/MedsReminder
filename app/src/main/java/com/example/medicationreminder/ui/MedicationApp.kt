@@ -483,6 +483,8 @@ private fun SettingsScreen(
     onRepostMissedRemindersChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    val autostartFallback = stringResource(R.string.autostart_fallback)
+    val autostartUnavailable = stringResource(R.string.autostart_unavailable)
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var notificationsAllowed by remember {
         mutableStateOf(
@@ -533,6 +535,23 @@ private fun SettingsScreen(
                 },
                 onAction = {
                     openExactAlarmSettings(context)
+                },
+            )
+        }
+        item {
+            SettingCard(
+                title = stringResource(R.string.autostart_title),
+                description = stringResource(R.string.autostart_description),
+                action = stringResource(R.string.autostart_open),
+                onAction = {
+                    val result = openAutostartSettings(context)
+                    if (result != AutostartSettingsResult.OEM_SCREEN) {
+                        android.widget.Toast.makeText(
+                            context,
+                            if (result == AutostartSettingsResult.UNAVAILABLE) autostartUnavailable else autostartFallback,
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                    }
                 },
             )
         }

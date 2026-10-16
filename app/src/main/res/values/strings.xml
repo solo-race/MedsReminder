@@ -92,4 +92,19 @@
     <string name="exact_alarm_dialog_go_settings">Open Alarms &amp; reminders</string>
     <string name="repost_missed_title">Re-post missed reminders</string>
     <string name="repost_missed_description">When a reminder fires, also restore earlier reminders that are still waiting for an answer, for example after the system cleared them.</string>
+    <string name="autostart_title">Autostart &amp; background activity</string>
+    <string name="autostart_description">Some phones block reminders when the app is closed. In system settings, allow this app to autostart and run in the background. On OPPO / ColorOS, look for Apps → Auto launch or App battery usage. This app cannot read or change that switch; please check it manually.</string>
+    <string name="autostart_open">Open autostart settings</string>
+    <string name="autostart_fallback">Look for Auto launch, App launch or Background activity in system settings. Menu names vary by phone.</string>
+    <string name="autostart_unavailable">Could not open settings. Open your phone settings and search for autostart or background activity.</string>
+    <string name="detail_every_day">Every day</string>
+    <string name="detail_times_label">Reminder times</string>
+    <string name="detail_weekdays_label">Repeat</string>
+    <string name="detail_no_times">No enabled reminder times</string>
+    <string name="detail_no_days">No repeat days selected</string>
+    <string name="detail_reminder_heading">This reminder</string>
+    <string name="detail_next_heading">Next dose</string>
+    <string name="detail_take_action">Mark as taken</string>
+    <string name="detail_skip_action">Skip this dose</string>
+    <string name="detail_photo_description">Medication photo</string>
 </resources>
