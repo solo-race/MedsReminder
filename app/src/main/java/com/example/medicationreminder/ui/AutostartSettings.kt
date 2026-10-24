@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import java.util.Locale
@@ -34,7 +33,8 @@ internal fun autostartTargets(manufacturer: String, brand: String): List<Autosta
     }
 }
 
-internal enum class AutostartSettingsResult { OEM_SCREEN, APP_DETAILS, SYSTEM_SETTINGS, UNAVAILABLE }
+/** A successful launch says nothing about the current autostart permission. */
+internal enum class AutostartSettingsResult { OEM_SCREEN_OPENED, MANUAL_GUIDANCE_REQUIRED }
 
 internal fun openAutostartSettings(
     context: Context,
@@ -44,16 +44,16 @@ internal fun openAutostartSettings(
     // Do not enumerate installed packages: explicit activity launches work without QUERY_ALL_PACKAGES.
     for (target in autostartTargets(manufacturer, brand)) {
         val intent = Intent().setComponent(ComponentName(target.packageName, target.activityName))
-        if (tryOpenSettings(context, intent)) return AutostartSettingsResult.OEM_SCREEN
+        if (tryOpenSettings(context, intent)) return AutostartSettingsResult.OEM_SCREEN_OPENED
     }
-    if (tryOpenSettings(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-            .setData(Uri.parse("package:${context.packageName}")))) {
-        return AutostartSettingsResult.APP_DETAILS
-    }
-    return if (tryOpenSettings(context, Intent(Settings.ACTION_SETTINGS))) {
-        AutostartSettingsResult.SYSTEM_SETTINGS
-    } else AutostartSettingsResult.UNAVAILABLE
+    // App Details and general Settings are not autostart screens. Stay in the app
+    // and explain the manual route rather than silently opening an unrelated page.
+    return AutostartSettingsResult.MANUAL_GUIDANCE_REQUIRED
 }
+
+/** Only invoked by the separately labelled action in the manual guide. */
+internal fun openSystemSettingsForAutostartGuide(context: Context): Boolean =
+    tryOpenSettings(context, Intent(Settings.ACTION_SETTINGS))
 
 private fun tryOpenSettings(context: Context, intent: Intent): Boolean = try {
     context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -61,5 +61,9 @@ private fun tryOpenSettings(context: Context, intent: Intent): Boolean = try {
 } catch (_: ActivityNotFoundException) {
     false
 } catch (_: SecurityException) {
+    false
+} catch (_: RuntimeException) {
+    // Vendor launch implementations can reject an activity with other runtime
+    // failures. Preserve the manual guide instead of crashing or claiming success.
     false
 }

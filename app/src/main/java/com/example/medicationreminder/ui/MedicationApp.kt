@@ -37,7 +37,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
@@ -70,6 +72,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +84,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -483,8 +487,8 @@ private fun SettingsScreen(
     onRepostMissedRemindersChanged: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    val autostartFallback = stringResource(R.string.autostart_fallback)
-    val autostartUnavailable = stringResource(R.string.autostart_unavailable)
+    var showAutostartGuide by rememberSaveable { mutableStateOf(false) }
+    var autostartSystemSettingsFailed by rememberSaveable { mutableStateOf(false) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var notificationsAllowed by remember {
         mutableStateOf(
@@ -544,13 +548,9 @@ private fun SettingsScreen(
                 description = stringResource(R.string.autostart_description),
                 action = stringResource(R.string.autostart_open),
                 onAction = {
-                    val result = openAutostartSettings(context)
-                    if (result != AutostartSettingsResult.OEM_SCREEN) {
-                        android.widget.Toast.makeText(
-                            context,
-                            if (result == AutostartSettingsResult.UNAVAILABLE) autostartUnavailable else autostartFallback,
-                            android.widget.Toast.LENGTH_LONG,
-                        ).show()
+                    if (openAutostartSettings(context) == AutostartSettingsResult.MANUAL_GUIDANCE_REQUIRED) {
+                        autostartSystemSettingsFailed = false
+                        showAutostartGuide = true
                     }
                 },
             )
@@ -578,6 +578,61 @@ private fun SettingsScreen(
             )
         }
     }
+    if (showAutostartGuide) {
+        AutostartManualGuide(
+            systemSettingsFailed = autostartSystemSettingsFailed,
+            onClose = { showAutostartGuide = false },
+            onOpenSystemSettings = {
+                // Keep the guide open so returning from Settings (or recreation)
+                // preserves the instructions. A launch is never permission proof.
+                autostartSystemSettingsFailed = !openSystemSettingsForAutostartGuide(context)
+            },
+        )
+    }
+}
+
+@Composable
+private fun AutostartManualGuide(
+    systemSettingsFailed: Boolean,
+    onClose: () -> Unit,
+    onOpenSystemSettings: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false),
+        title = { Text(stringResource(R.string.autostart_guide_title)) },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (systemSettingsFailed) {
+                    Text(
+                        stringResource(R.string.autostart_system_settings_failed),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(stringResource(R.string.autostart_guide_unavailable))
+                    Text(stringResource(R.string.autostart_guide_coloros, stringResource(R.string.app_name)))
+                    Text(stringResource(R.string.autostart_guide_other_phones))
+                    Text(stringResource(R.string.autostart_guide_background_separate))
+                    Text(stringResource(R.string.autostart_guide_navigation_only))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenSystemSettings) {
+                Text(stringResource(R.string.autostart_open_system_settings))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) { Text(stringResource(R.string.autostart_guide_close)) }
+        },
+    )
 }
 
 @Composable

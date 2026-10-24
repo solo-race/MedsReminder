@@ -13,7 +13,6 @@ import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
-import com.example.medicationreminder.reminders.nextUndecidedOccurrence
 import com.example.medicationreminder.reminders.ScheduleResult
 import java.time.Instant
 import java.time.ZoneId
@@ -177,22 +176,14 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()
 
-    suspend fun nextActionableOccurrence(medicationId: Long, after: Instant): DoseOccurrence? = withContext(Dispatchers.IO) {
-        var earliest: DoseOccurrence? = null
-        for (dose in container.repository.activeScheduledDoses()) {
-            if (dose.medicationId != medicationId) continue
-            val occurrence = nextUndecidedOccurrence(dose, after) { candidate ->
-                container.repository.hasDoseDecisionOnLocalDay(
-                    candidate.doseTimeId,
-                    candidate.scheduledFor,
-                    candidate.zoneId,
-                )
-            } ?: continue
-            if (earliest == null || occurrence.scheduledFor < earliest.scheduledFor) {
-                earliest = occurrence
-            }
+    suspend fun nextActionableOccurrence(medicationId: Long, now: Instant): DoseOccurrence? = withContext(Dispatchers.IO) {
+        homeDetailOccurrence(container.repository.activeScheduledDoses(), medicationId, now) { candidate ->
+            container.repository.hasDoseDecisionOnLocalDay(
+                candidate.doseTimeId,
+                candidate.scheduledFor,
+                candidate.zoneId,
+            )
         }
-        earliest
     }
 
     suspend fun isDoseDecided(occurrence: DoseOccurrence): Boolean = withContext(Dispatchers.IO) {

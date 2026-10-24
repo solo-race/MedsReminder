@@ -26,7 +26,7 @@ The exact final location/name may change during implementation, but the identity
 ## Steps
 
 1. Add the domain occurrence type.
-2. Treat Home navigation as the only path allowed to derive an upcoming occurrence from the current schedule and current time.
+2. Treat Home navigation as the only path allowed to derive an occurrence from the current schedule and current time: today’s most recent due, undecided occurrence in the schedule zone, otherwise the earliest undecided future occurrence. Do not synthesize previous-day backlog; older explicit notifications remain pinned to their exact identity.
 3. Extend reminder/alarm content intents to carry `doseTimeId` and `scheduledFor` in addition to medicationId.
 4. Extend `MainActivity`/Compose entry state so Detail can receive an explicit occurrence when opened from a reminder.
 5. If an explicit occurrence is present, Detail must use it rather than recomputing from `Instant.now()`.
@@ -42,7 +42,7 @@ The exact final location/name may change during implementation, but the identity
 - The entry Activity declares `singleTop`, so a warm reminder intent is delivered to the running instance as `onNewIntent` (asserted through the package manager; the OEM delivery decision itself stays device-verified).
 - Multiple daily times do not cross-target.
 - A stale notification for a deleted slot cannot record a new dose event.
-- Home-opened Detail computes the next eligible upcoming occurrence.
+- Home-opened Detail prefers the most recent due, undecided occurrence today before a future one, including when another medicine in the same time slot was just confirmed. Selection writes no dose history.
 
 ## Exit criteria
 

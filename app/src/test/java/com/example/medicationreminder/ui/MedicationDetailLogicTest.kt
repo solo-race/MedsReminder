@@ -147,6 +147,42 @@ class MedicationDetailLogicTest {
         )
     }
 
+    @Test
+    fun dstGapResolvedOccurrenceRemainsActionable() {
+        val gapPlan = plan.copy(schedule = plan.schedule.copy(manualZoneId = "America/New_York"),
+            times = listOf(plan.times.single().copy(time = LocalTime.of(2, 30))))
+        val gap = occurrence("2026-03-08T07:30:00Z").copy(zoneId = ZoneId.of("America/New_York"))
+        assertTrue(isOccurrenceCompatibleWithPlan(gapPlan, gap))
+    }
+
+    @Test
+    fun dstOverlapRejectsSecondOffsetNotSelectedByScheduler() {
+        val overlapPlan = plan.copy(schedule = plan.schedule.copy(manualZoneId = "America/New_York"),
+            times = listOf(plan.times.single().copy(time = LocalTime.of(1, 30))))
+        assertTrue(isOccurrenceCompatibleWithPlan(overlapPlan,
+            occurrence("2026-11-01T05:30:00Z").copy(zoneId = ZoneId.of("America/New_York"))))
+        assertFalse(isOccurrenceCompatibleWithPlan(overlapPlan,
+            occurrence("2026-11-01T06:30:00Z").copy(zoneId = ZoneId.of("America/New_York"))))
+    }
+
+    @Test
+    fun previousLoadIsHiddenUntilNewMedicationOrOccurrenceFinishesLoading() {
+        val first = occurrence("2026-10-24T00:00:00Z")
+        val key = detailDoseStateKey(plan, first)
+        val loaded = LoadedDetailDoseState(key, DetailDoseState(occurrence = first))
+        assertSame(loaded.state, loaded.forKey(key))
+        org.junit.Assert.assertNull(loaded.forKey(detailDoseStateKey(plan, first.copy(scheduledFor = first.scheduledFor.plusSeconds(86400)))))
+        org.junit.Assert.assertNull(loaded.forKey(detailDoseStateKey(plan.copy(medication = plan.medication.copy(id = 99)), null)))
+    }
+
+    @Test
+    fun previousLoadIsHiddenAfterPlanEditOrNotificationToHomeTransition() {
+        val first = occurrence("2026-10-24T00:00:00Z")
+        val loaded = LoadedDetailDoseState(detailDoseStateKey(plan, first), DetailDoseState(occurrence = first))
+        org.junit.Assert.assertNull(loaded.forKey(detailDoseStateKey(plan, null)))
+        org.junit.Assert.assertNull(loaded.forKey(detailDoseStateKey(plan.copy(times = emptyList()), first)))
+    }
+
     private fun occurrence(instant: String) = DoseOccurrence(
         medicationId = 10L,
         doseTimeId = 30L,
