@@ -71,6 +71,11 @@ internal data class DetailDoseStateKey(
     val explicitOccurrence: DoseOccurrence?,
 )
 
+/** A producer may retain its previous value while the new key loads. Never expose that value. */
+internal data class LoadedDetailDoseState(val key: DetailDoseStateKey, val state: DetailDoseState) {
+    fun forKey(currentKey: DetailDoseStateKey): DetailDoseState? = state.takeIf { key == currentKey }
+}
+
 internal fun detailDoseStateKey(
     plan: MedicationPlan?,
     explicitOccurrence: DoseOccurrence?,
@@ -88,7 +93,8 @@ internal fun isOccurrenceCompatibleWithPlan(plan: MedicationPlan, occurrence: Do
     val doseTime = plan.times.firstOrNull { it.id == occurrence.doseTimeId && it.enabled } ?: return false
     val local = occurrence.scheduledFor.atZone(zoneId)
     if (local.dayOfWeek !in plan.schedule.weekdays) return false
-    return local.toLocalTime() == doseTime.time
+    // Use the same DST gap/overlap resolution as the scheduler and repository validation.
+    return local.toLocalDate().atTime(doseTime.time).atZone(zoneId).toInstant() == occurrence.scheduledFor
 }
 
 @Composable
@@ -100,9 +106,10 @@ internal fun MedicationDetailScreen(
     onEdit: (Long) -> Unit,
 ) {
     val locale = LocalConfiguration.current.locales[0]
-    val now = remember { Instant.now() }
-    val initialState by produceState<DetailDoseState?>(initialValue = null, plan, explicitOccurrence) {
-        value = when {
+    val stateKey = detailDoseStateKey(plan, explicitOccurrence)
+    val now = remember(stateKey) { Instant.now() }
+    val initialLoad by produceState<LoadedDetailDoseState?>(initialValue = null, stateKey) {
+        val loadedState = when {
             plan == null -> DetailDoseState(stale = true)
             explicitOccurrence != null -> {
                 if (!isOccurrenceCompatibleWithPlan(plan, explicitOccurrence)) {
@@ -118,10 +125,11 @@ internal fun MedicationDetailScreen(
                 occurrence = viewModel.nextActionableOccurrence(plan.medication.id, now),
             )
         }
+        value = LoadedDetailDoseState(stateKey, loadedState)
     }
-    val stateKey = detailDoseStateKey(plan, explicitOccurrence)
+    val initialState = initialLoad?.forKey(stateKey)
     var state by remember(stateKey) { mutableStateOf<DetailDoseState?>(null) }
-    LaunchedEffect(initialState) {
+    LaunchedEffect(stateKey, initialLoad) {
         if (initialState != null) state = initialState
     }
 
@@ -192,8 +200,11 @@ internal fun MedicationDetailScreen(
             item {
                 DetailSection {
                     val occurrence = doseState?.occurrence
-                    Text(stringResource(if (explicitOccurrence != null) R.string.detail_reminder_heading
-                        else R.string.detail_next_heading), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(when {
+                        explicitOccurrence != null -> R.string.detail_reminder_heading
+                        occurrence != null && !occurrence.scheduledFor.isAfter(now) -> R.string.detail_pending_heading
+                        else -> R.string.detail_next_heading
+                    }), style = MaterialTheme.typography.titleMedium)
                     if (doseState != null && !doseState.stale && occurrence != null) {
                         val local = occurrence.scheduledFor.atZone(occurrence.zoneId)
                         Text(formatDetailTime(local.toLocalTime(), locale),

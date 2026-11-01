@@ -35,10 +35,11 @@ Taken/Skipped call the shared dose-decision use-case through the ViewModel. They
 ## State rules
 
 1. An explicit notification occurrence wins over a newly calculated upcoming occurrence.
-2. Home-opened Detail derives the next actionable upcoming occurrence from the current plan.
+2. Home-opened Detail selects today’s most recent due, undecided occurrence from the current plan in the schedule zone; only if none exists does it select the earliest undecided future occurrence. Prior-day backlog is not synthesized.
 3. After a decision, UI reflects the decision and no longer offers a second conflicting action for that occurrence.
 4. Missing/deleted medication is handled without navigating into an editor with null data.
 5. Detail must not own editable copies of medication fields.
+6. Loading results must match the current plan and explicit occurrence key before enabling actions. A prior result must not be shown while a new destination loads. DST resolution matches the existing scheduler and repository.
 
 ## Localization
 

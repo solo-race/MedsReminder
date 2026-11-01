@@ -92,11 +92,18 @@
     <string name="exact_alarm_dialog_go_settings">打开“闹钟和提醒”</string>
     <string name="repost_missed_title">补发错过的提醒</string>
     <string name="repost_missed_description">提醒触发时，同时恢复仍在等待确认的过期提醒，例如被系统清除的情况。</string>
-    <string name="autostart_title">自启动与后台运行</string>
-    <string name="autostart_description">部分手机会在应用关闭后阻止提醒。请在系统设置中允许本应用自启动和后台运行。OPPO / ColorOS 可查找“应用 → 自启动”或“应用耗电管理”。应用无法读取或更改该开关，请手动确认。</string>
+    <string name="autostart_title">自启动</string>
+    <string name="autostart_description">部分手机会在本应用未运行时阻止提醒。OPPO / ColorOS 请前往“设置 → 应用 → 自启动”，这与电池和后台运行设置不同。本应用无法读取或更改自启动开关；打开设置页面不代表已开启。</string>
     <string name="autostart_open">前往自启动设置</string>
-    <string name="autostart_fallback">请在系统设置中查找“自启动”“应用启动管理”或“后台运行”，名称因机型而异。</string>
-    <string name="autostart_unavailable">无法打开设置，请手动打开手机设置，搜索“自启动”或“后台运行”。</string>
+    <string name="autostart_guide_title">手动设置自启动</string>
+    <string name="autostart_guide_unavailable">此手机无法直接跳转到自启动设置，请按以下步骤手动操作。</string>
+    <string name="autostart_guide_coloros">OPPO / ColorOS：打开“设置 → 应用 → 自启动”，找到“%1$s”并允许其自启动。路径可能因系统版本而异；若找不到，请在设置中搜索“自启动”或“自动启动”。</string>
+    <string name="autostart_guide_other_phones">其他手机：请在系统设置中搜索“自启动”或“应用启动管理”。菜单名称及是否提供此功能因厂商而异。</string>
+    <string name="autostart_guide_background_separate">应用详情不是自启动入口。电池与后台运行控制是独立设置；允许后台运行不代表已允许自启动。</string>
+    <string name="autostart_guide_navigation_only">下方按钮仅打开系统设置首页，不会直达自启动页面。本应用无法读取或更改自启动开关，请自行确认后返回本指引。</string>
+    <string name="autostart_open_system_settings">打开系统设置</string>
+    <string name="autostart_system_settings_failed">无法打开系统设置，请手动打开手机的“设置”应用，并按以下步骤操作。</string>
+    <string name="autostart_guide_close">关闭</string>
     <string name="detail_every_day">每天</string>
     <string name="detail_times_label">提醒时间</string>
     <string name="detail_weekdays_label">重复日期</string>
@@ -107,4 +114,5 @@
     <string name="detail_take_action">标记已服用</string>
     <string name="detail_skip_action">跳过本次</string>
     <string name="detail_photo_description">药物照片</string>
+    <string name="detail_pending_heading">待确认服药</string>
 </resources>
