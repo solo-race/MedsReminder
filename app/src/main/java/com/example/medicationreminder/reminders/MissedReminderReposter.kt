@@ -9,6 +9,15 @@ import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 
+/** Silent renders preserve the stored phase; only a real delivery may advance its alert state. */
+internal fun pendingStageForDelivery(stored: ReminderStage?, requested: ReminderStage,
+    alert: Boolean, isDue: Boolean): ReminderStage = when {
+    stored == ReminderStage.DUE -> ReminderStage.DUE
+    !alert && stored != null -> stored
+    requested == ReminderStage.PRE && stored == null && alert && isDue -> ReminderStage.DUE
+    else -> requested
+}
+
 /** One recovery entry for persisted pending and optional previously unseen overdue doses. */
 class MissedReminderReposter(
     private val repository: MedicationRepository,
@@ -28,8 +37,8 @@ class MissedReminderReposter(
             return false
         }
         // A late PRE cannot downgrade or replay the DUE sound.
-        val stage = if (phase == ReminderStage.PRE && pending == null && alert &&
-            !identity.scheduledFor.isAfter(now)) ReminderStage.DUE else phase
+        val stage = pendingStageForDelivery(pending?.stage, phase, alert,
+            isDue = !identity.scheduledFor.isAfter(now))
         val changed = repository.registerPendingReminder(identity, stage)
         if (!repository.pendingReminders(identity.medicationId).any { it.matches(identity) }) return false
         val sound = preferences?.reminderSoundEnabled?.first() ?: true
@@ -43,6 +52,11 @@ class MissedReminderReposter(
         if (legacy && posted) notifications.cancelLegacyReminder(identity.doseTimeId)
         return posted
     }
+
+    suspend fun restoreOccurrence(occurrence: DoseOccurrence, legacy: Boolean = false,
+        now: Instant = Instant.now()): Boolean = deliverOccurrence(occurrence,
+        if (occurrence.scheduledFor.isAfter(now)) ReminderStage.PRE else ReminderStage.DUE,
+        alert = false, legacy = legacy, now = now)
 
     suspend fun restorePending(now: Instant = Instant.now()) {
         val active = repository.activeScheduledDoses()

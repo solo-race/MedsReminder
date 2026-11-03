@@ -48,6 +48,16 @@ class ReminderPhasePlanningTest {
         assertEquals(window.filter { it != decided }, preWindowOccurrences(dose, now) { it == decided })
     }
 
+    @Test fun silentDueRepostPreservesPreAndLeavesTheRealDueTransitionAvailable() {
+        val repost = pendingStageForDelivery(ReminderStage.PRE, ReminderStage.DUE, alert = false, isDue = true)
+        assertEquals(ReminderStage.PRE, repost)
+        val actualDue = pendingStageForDelivery(repost, ReminderStage.DUE, alert = true, isDue = true)
+        assertEquals(ReminderStage.DUE, actualDue)
+        assertTrue(actualDue != repost)
+        assertEquals(ReminderStage.DUE,
+            pendingStageForDelivery(actualDue, ReminderStage.PRE, alert = false, isDue = true))
+    }
+
     @Test fun earlyDecisionSuppressesBothPhasesAndLateHandlingUsesNow() = runBlocking {
         val dose = interval(720)
         for (phase in ReminderStage.entries) {

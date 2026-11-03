@@ -88,6 +88,21 @@ class PendingReminderDeliveryTest {
         assertTrue(manager.activeNotifications.single().notification.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
     }
 
+    @Test fun dismissAtDueKeepsPreUntilTheActualDueDelivery() = runBlocking {
+        val occurrence = dose.occurrenceAt(due)
+        recovery.deliverOccurrence(occurrence, ReminderStage.PRE, alert = true, now = due.minusSeconds(300))
+        assertEquals(ReminderStage.PRE, repository.pendingReminders().single().stage)
+        manager.cancelAll() // The user clears PRE after 08:00, before DUE receiver execution.
+        recovery.restoreOccurrence(occurrence, now = due.plusSeconds(1))
+        assertEquals(ReminderStage.PRE, repository.pendingReminders().single().stage)
+        val silent = manager.activeNotifications.single().notification
+        assertFalse(silent.extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER))
+        assertTrue(silent.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+        recovery.deliverOccurrence(occurrence, ReminderStage.DUE, alert = true, now = due.plusSeconds(2))
+        assertEquals(ReminderStage.DUE, repository.pendingReminders().single().stage)
+        assertTrue(manager.activeNotifications.single().notification.flags and Notification.FLAG_ONLY_ALERT_ONCE == 0)
+    }
+
     @Test fun soundPreferencePersistsAndRefreshUsesSilentChannelWithoutDroppingPending() = runBlocking {
         assertTrue(preferences.reminderSoundEnabled.first())
         val occurrence = dose.occurrenceAt(due)

@@ -244,7 +244,7 @@ review 使用新时间戳文件 `docs/review/YYYY-MM-DD-HHmm-sgt-<scope>.md`，�
 | --- | --- | --- |
 | 计划基线修订 | 已落实；主控转达独立审阅 PASS，无阻塞 | 保留该基线与审阅约束 |
 | P1 数据与间隔 | D / 主控转达独立审阅 PASS，无阻塞 | 保留P1受阻验证记录，不将其写作通过 |
-| P2 提醒与交互 | B / 实现已交付，独立阶段审阅待进行 | 独立审阅P2；Room/通知运行、音频及生命周期检查仍待验证 |
+| P2 提醒与交互 | B / 首轮REVISE后的两项修复已交付，待复审 | 复审本轮追加提交；Room/通知运行、音频及生命周期检查仍待验证 |
 | P3 汇总 | 未开始，依赖P2通过 | 等待P2有效review |
 | P4 验证与发布准备 | 未开始，依赖P3通过 | 集成验收与交付 |
 
@@ -262,6 +262,15 @@ review 使用新时间戳文件 `docs/review/YYYY-MM-DD-HHmm-sgt-<scope>.md`，�
 - 按P1审阅提醒，固定模式决策及查询均先查exact occurrence再查logical-day；新增Honolulu→Kiritimati同instant跨local-day回归用例。该Room用例已编译，运行仍未验证。
 - 本轮实际自检：主源码/KSP和所有测试源码编译成功；70项针对性JVM用例通过，debug APK实际重新打包成功；139个中英文资源key唯一、对等、引用有效。命令、APK指纹及证据在 `docs/memory.md`。这些是implementer自检，不是独立审阅。
 - P1曾失败的9个Robolectric类本轮未补跑；新增Room/通知/DataStore集成用例也未运行，不能以源码编译或70项JVM通过替代。完整套件、lint、Compose实际交互、后台声音、锁屏及ColorOS实机检查仍待主控VM/用户本地验证。P3汇总页面和P4版本/发布准备均未实施。
+
+### P2 首轮审阅修复（2026-11-03，C → B，待复审）
+
+主控转达对 `894e8a6` 的 REVISE，两项问题在本轮追加修复，不改写原提交、不进入P3：
+
+1. 到点但DUE尚未处理时，dismiss按当前时钟传DUE，静默重贴会误把PRE升级，令真正DUE无法响铃。单次静默恢复现在统一保留数据库已有阶段，仅按当前时刻渲染到期文案；实际DUE投递才升级。补充PRE→08:00静默dismiss→DUE的通知/Room顺序用例（已编译、未运行），另有阶段选择的纯JVM回归已运行。
+2. 旧08:00决策完成回调可能清除后来20:00通知绑定，旧下一次加载也可能写入12:00。现在复用已有Detail key/occurrence、实时绑定和尚未消费的ReminderEntry作输入校验；有条件地清除原绑定，显式入口交给已有keyed producer推进，普通详情的异步下一次结果再次校验输入。4个可控制完成顺序的JVM用例覆盖已消费/尚未消费的新通知、延迟下一次结果和正常推进；不声称已经执行Compose按钮/重组测试。
+
+本轮自检：75项针对性JVM测试通过，主/测试源码编译和debug打包成功，`git diff --check`通过。Room/Robolectric顺序用例、完整套件、lint及实机声音/Compose交互仍未运行，之前9个Robolectric失败也未补跑。结果及APK指纹见 `docs/memory.md`；阶段仍待独立复审，不视为PASS。
 
 ## 9. 核对依据
 

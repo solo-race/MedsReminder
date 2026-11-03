@@ -6,7 +6,6 @@ import android.content.Intent
 import com.example.medicationreminder.appContainer
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import java.time.Instant
-import com.example.medicationreminder.domain.model.ReminderStage
 import android.util.Log
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
@@ -25,9 +24,8 @@ class ReminderDismissReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                container.missedReminderReposter.deliverOccurrence(occurrence,
-                    if (occurrence.scheduledFor.isAfter(Instant.now())) ReminderStage.PRE else ReminderStage.DUE,
-                    alert = false, legacy = !intent.getBooleanExtra(ReminderNotifications.EXTRA_MODERN_NOTIFICATION, false))
+                container.missedReminderReposter.restoreOccurrence(occurrence,
+                    legacy = !intent.getBooleanExtra(ReminderNotifications.EXTRA_MODERN_NOTIFICATION, false))
             } catch (error: Exception) {
                 Log.e("ReminderDismiss", "Unable to restore dismissed reminder", error)
             } finally {

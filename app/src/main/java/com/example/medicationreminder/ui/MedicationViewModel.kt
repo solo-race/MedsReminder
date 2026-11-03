@@ -167,6 +167,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         return entry
     }
 
+    internal fun isCurrentReminderContext(expected: DoseOccurrence?): Boolean =
+        reminderContextMatches(expected, _reminderOccurrence.value, _reminderEntry.value)
+
+    internal fun clearReminderOccurrenceIfCurrent(expected: DoseOccurrence?): Boolean =
+        clearReminderBindingIfCurrent(expected, _reminderOccurrence, _reminderEntry)
+
     /** Binds Detail opened from Home to a schedule-derived occurrence again. */
     fun clearReminderOccurrence() {
         _reminderOccurrence.value = null
@@ -231,8 +237,11 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         container.repository.hasDoseDecision(occurrence)
     }
 
-    fun loadNextOccurrence(medicationId: Long, onLoaded: (DoseOccurrence?) -> Unit) {
-        viewModelScope.launch { onLoaded(nextActionableOccurrence(medicationId, Instant.now())) }
+    fun loadNextOccurrence(medicationId: Long, isCurrent: () -> Boolean,
+        onLoaded: (DoseOccurrence?) -> Unit) {
+        viewModelScope.launch {
+            loadNextOccurrenceIfCurrent({ nextActionableOccurrence(medicationId, Instant.now()) }, isCurrent, onLoaded)
+        }
     }
 
     fun decideDose(
@@ -341,4 +350,17 @@ internal fun reminderPlanChanged(plan: MedicationPlan, draft: MedicationDraft): 
     return plan.times.filter { it.enabled }.map { it.time }.sorted() != draft.times.distinct().sorted() ||
         plan.schedule.weekdays != draft.weekdays || plan.schedule.timeZoneMode != draft.timeZoneMode ||
         plan.schedule.manualZoneId != draft.manualZoneId
+}
+
+internal fun reminderContextMatches(expected: DoseOccurrence?, current: DoseOccurrence?, pending: ReminderEntry?): Boolean =
+    pending == null && current == expected
+
+internal fun clearReminderBindingIfCurrent(expected: DoseOccurrence?, current: MutableStateFlow<DoseOccurrence?>,
+    pending: StateFlow<ReminderEntry?>): Boolean =
+    reminderContextMatches(expected, current.value, pending.value) && current.compareAndSet(expected, null)
+
+internal suspend fun loadNextOccurrenceIfCurrent(load: suspend () -> DoseOccurrence?, isCurrent: () -> Boolean,
+    onLoaded: (DoseOccurrence?) -> Unit) {
+    val next = load()
+    if (isCurrent()) onLoaded(next)
 }
