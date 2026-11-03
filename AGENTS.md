@@ -65,3 +65,7 @@ adb shell monkey -p com.example.medicationreminder 1
 ## History
 
 Verification evidence, device setup, tooling quirks, and backlog: `docs/memory.md`. Command-environment problems and fixes: `docs/operations.md`.
+
+## Current requested feature plan
+
+The interval-reminder and dose-summary feature is planned on `codex/feature-interval-reminders-dose-summary`, created from `codex/feature-medication-detail-dose-actions`. Its implementation entry point is [`docs/feature-plans/interval-reminders-dose-summary/README.md`](docs/feature-plans/interval-reminders-dose-summary/README.md). This is a new, planning-only feature branch; the previous feature is not closed or merged. Follow the plan's current phase and existing independent review rules. Do not modify `master`, create PRs, merge, tag, or release without the user's explicit instruction.

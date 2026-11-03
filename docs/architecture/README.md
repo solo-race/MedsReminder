@@ -14,9 +14,14 @@ After the latest review, use this architecture index and then the relevant featu
 | --- | --- | --- | --- |
 | Review archive | Time-locked architecture, implementation, and regression reviews; latest findings override older review assumptions when they conflict | [`../review/README.md`](../review/README.md) — read **Latest review** first | Active / canonical review entry point |
 | Medication Detail + pre-alarm dose decisions | Stable dose-slot identity, explicit occurrence identity, transactional dose decisions, decision-aware AlarmManager scheduling and receiver guards | [`../feature-plans/medication-detail-dose-actions/README.md`](../feature-plans/medication-detail-dose-actions/README.md) | Implemented through Phase 6; all phase Review Gates passed. The 2026-09-13 device smoke found a blocking notification-entry defect; the correction (`5e28a09`, `0caed66`) is automated-verified (88 unit tests, lint 0 errors) and device-verified (`../review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`) — branch remains active and unmerged pending the merge decision. |
+| Interval reminders + dose summary | Fixed-anchor interval occurrences, PRE/DUE reminder stages, persisted pending reminders, per-occurrence notification identity, dose snapshots and history summary | [`../feature-plans/interval-reminders-dose-summary/README.md`](../feature-plans/interval-reminders-dose-summary/README.md) | Planned; implementation starts at P1. No new feature implementation or verification is claimed. |
 
 ## Current feature contract
 
 The medication-detail feature keeps the existing editor architecture and uses persisted dose decisions as the correctness boundary: AlarmManager state may be cancelled/rescheduled, but reminder delivery must always consult persisted decision state before displaying a reminder. The Phase 4 review established that the local-day decision identity itself must also be persisted rather than reconstructed from the current schedule zone. A minimal Room v2→v3 migration therefore adds a stable logical local-day key to `dose_events`; this is a correctness migration, not an unrelated schema expansion.
 
 For current findings and corrections to assumptions, read the latest archived review first. For implementation sequencing, invariants, race handling, and verification scenarios, then use the linked feature plan as the working source of truth until the feature is merged and the stable architecture is folded into permanent architecture documentation.
+
+## Interval-reminder extension
+
+The new plan preserves the fixed-time schedule's logical-local-day decision behavior and uses the existing exact `(doseTimeId, scheduledFor)` identity for interval schedules. Pending reminders remain separate from completed dose events. The plan defines the required Room v3→v4 changes and all call sites; these changes are not yet implemented. The canonical latest review remains the review archive pointer above.
