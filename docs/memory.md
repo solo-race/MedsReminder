@@ -224,3 +224,45 @@ Final debug artifact: `app/build/outputs/apk/debug/app-debug.apk`, **20,406,695 
 `/workspace/toolchains/android-sdk/platform-tools/adb devices -l` returned no devices. **NOT RUN**: physical-device install/upgrade with preserved data and matching signature, real Compose/NavHost taps/back/rotation/lifecycle acceptance, real PRE/DUE sounds and silent channel, lockscreen, reboot recovery and ColorOS background/autostart checks. Connected/instrumentation tests were not run. Android SDK 35 Robolectric execution is not cross-device/OEM acceptance. The parent VM's missing JDK/SDK and blocked official Gradle download were relayed context, not an independent build attempt by this implementer.
 
 [Local minimal validation steps](feature-plans/interval-reminders-dose-summary/local-validation.md) provide an executable JDK17/SDK wrapper command plus the remaining focused device/signature/data checks. [Release notes](feature-plans/interval-reminders-dose-summary/release-notes.md) remain a draft. AGENTS, architecture index and plan state now record supervisor-relayed P3 PASS and P4 B. Final independent review is still required; this self-check is not that review. No master update, force push, PR, tag, release or real medication-data operation was performed.
+
+## 2026-11-03 — Follow-system default language (implementation delivered, independent review pending)
+
+Input `242fb73c0f28843e95857bf0c24578da0cd61be1`, confirmed equal to the remote feature tip before editing; remote master remains `de2f6b674c64565f95883e704341c6c599049214`. The supervisor relayed final P4 independent PASS with two documentation corrections, already applied in the input commit: migration runtime evidence is separate 2→3 and 3→4 tests, not a 1→4 upgrade test; exact-instant/different-local-day dedup belongs to `RoomMedicationRepositoryDoseDecisionTest`. The new user-authorized language change is subsequent work and awaits its own independent review. Prior P4 device/signing gaps remain open.
+
+### Behavior and scope
+
+Absent/unrecognized saved language now means SYSTEM. Legacy explicit `en` / `zh-CN` values remain English / Simplified Chinese; selecting Follow system removes the explicit preference. Resolve the primary current context configuration locale on each render/post: Chinese (including other Chinese regions) uses the supported Simplified Chinese resources, unsupported languages such as French fall back to English. No process-wide `Locale.setDefault`, database migration, new locale service or background job was added.
+
+The shared context-local helper is used by Compose, reminder titles/actions/status, action-failure messages and channel metadata. Compose observes the outer `LocalConfiguration` and includes context/configuration in the remembered localization inputs, so system configuration changes/recreation refresh resources even when the preference is still SYSTEM. The initial language StateFlow is null until DataStore emits; UI waits for the actual choice instead of briefly applying the wrong default during cold startup. Settings exposes Follow system alongside the two existing explicit choices.
+
+The existing SystemEventReceiver now accepts ACTION_LOCALE_CHANGED. In SYSTEM mode it updates channels and silently restores persisted pending reminders using the existing recovery method; it does not independently rebuild alarms, advance stored PRE/DUE or create dose decisions. Explicit language choices remain stable. Startup channel metadata is refreshed after reading the saved preference before the usual reminder restore. Newly posted travel notifications and their actions now use localized resources with the selected language passed by the existing time-zone receiver. User medicine names, dosage strings and time-zone data are not translated. Previously posted travel questions have no new persistence/rebuild mechanism; immediate re-rendering of those old questions is not claimed.
+
+Primary references checked: Android's [configuration-change/Compose guidance](https://developer.android.com/guide/topics/resources/runtime-changes) and [system broadcast Intent reference](https://developer.android.com/reference/android/content/Intent). The implementation reuses the repository's existing context localization design rather than replacing it with a new per-app locale framework. Version stays beta.5/code 5; no signing or workflow changes.
+
+### Actual self-checks
+
+Used the same configured JDK17 / Android SDK / Gradle caches and supported Robolectric dependency directory as P4:
+
+```bash
+JAVA_HOME=/workspace/toolchains/jdk-17 \
+GRADLE_USER_HOME=/workspace/.gradle \
+ANDROID_HOME=/workspace/toolchains/android-sdk \
+ANDROID_SDK_ROOT=/workspace/toolchains/android-sdk \
+/workspace/toolchains/jdk-17/bin/java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain \
+  testDebugUnitTest lintDebug assembleDebug \
+  -ProbolectricDependencyDir=/home/agent/.m2/repository/org/robolectric/android-all-instrumented/15-robolectric-13954326-i7 \
+  -Pkotlin.compiler.execution.strategy=in-process --no-daemon --offline --console=plain
+```
+
+- First full run: **FAILED**, 183 tests / 180 passed / 3 failures. Main/KSP and all test sources compiled, and APK packaging executed. One new cold-ViewModel test did not drain Robolectric's paused main queue and timed out; two pending-notification fixtures used nanosecond instants against millisecond anchors, so valid pending rows were not created. Corrected test synchronization (including awaiting ordered broadcast completion), millisecond fixtures and the assertion's existing Chinese Taken label; no production behavior was changed in response to these fixture failures. Log `/tmp/meds-system-language-validation.log` (1m17s; 57 tasks / 32 executed / 25 up-to-date).
+- Focused rerun of `AppLanguageTest` and `SystemLanguageReminderTest` with the same flags: **PASSED**, 8 tests / 0 failures/errors/skips, 22s; 33 tasks / 3 executed / 30 up-to-date. Log `/tmp/meds-system-language-targeted.log`.
+- Final full command above, no filters: **PASSED**, **183 tests / 33 classes / 0 failures / 0 errors / 0 skipped**, BUILD SUCCESSFUL in 32s; 59 tasks / 5 executed / 54 up-to-date. Test execution and lint analysis/report ran; main compilation and APK packaging from the first run's identical production source were valid and reused. Log `/tmp/meds-system-language-final.log`. XML `app/build/test-results/testDebugUnitTest/`; HTML `app/build/reports/tests/testDebugUnitTest/index.html`.
+- `lintDebug`: **PASSED**, **0 errors / 19 warnings / 1 hint**; issue IDs/counts match the prior P4 report (API/target, bundle locale, newer dependencies, plurals, backup, resource/style notices). No warning suppression added. Existing read-only analytics warning and deprecation/compiler warnings remain non-fatal. Reports: `app/build/reports/lint-results-debug.html` / `.xml`.
+- `assembleDebug` and `apksigner verify --print-certs`: **PASSED**; output metadata beta.5/code 5, Android Debug certificate SHA-256 unchanged (`728f06d1e38e23ca627f8b17c73928dc11326e8578b91e830e22ae2d07b838d4`). New APK: `app/build/outputs/apk/debug/app-debug.apk`, **20,961,086 bytes**, SHA-256 **`b8ddcb6b29e42e2bec0c41c7fd7c3cd68a60fbdfda5181249d5ecd47fc3903f1`**. Not installed or released; previous P4 APK hash is historical.
+- Static self-checks: resource XML parsing, EN/ZH uniqueness/parity (164 keys), Kotlin string references, local documentation links and `git diff --check` **PASS**. No permission/network policy, dependency or master changes; no Codebase Memory or DeepSeek used.
+
+The 8 new runtime cases cover missing/legacy settings, supported/fallback locale resolution, DataStore explicit choice and return-to-system persistence, configuration-context resource switching without changing the base locale, cold ViewModel loading with stored English/Chinese/system, real manifest-routed ordered locale broadcast updating the same persisted notification silently with unchanged identity/content intent/PRE stage, explicit English preservation with unsupported-system fallback, and newly posted localized travel actions preserving user-entered text. The existing system-event contract also confirms locale changes do not request an alarm rebuild. These are resource/ViewModel/Room/notification/BroadcastReceiver checks under Robolectric, not real Compose chip taps or system Settings UI interactions.
+
+### Remaining checks and handoff
+
+`adb devices -l`: no devices. **NOT RUN**: physical system-language changes while foreground/background/cold, actual Compose language chips and navigation/form-state preservation, OEM/channel/sound presentation, device upgrade with existing saved choices, instrumentation and formal signed release build. The prior PRE/DUE/OEM/upgrade acceptance gaps remain; unit tests do not prove them. No install, uninstall, data clearing, real-medication edits or publication occurred. [Local validation steps](feature-plans/interval-reminders-dose-summary/local-validation.md) now include the language scenarios. Implementation stops for the separately required independent review; the previous P4 PASS is not approval of this subsequent source change.

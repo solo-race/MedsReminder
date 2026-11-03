@@ -10,8 +10,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.net.Uri
-import android.content.res.Configuration
-import java.util.Locale
+import com.example.medicationreminder.data.settings.AppLanguage
+import com.example.medicationreminder.data.settings.withAppLanguage
 import java.time.Instant
 import com.example.medicationreminder.domain.model.ReminderStage
 import androidx.core.app.NotificationCompat
@@ -26,42 +26,38 @@ fun lockscreenTitle(alias: String?, fallback: String): String =
     alias?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
 
 class ReminderNotifications(private val context: Context) {
-    private fun localizedContext(languageTag: String?): Context = if (languageTag == null) context else
-        context.createConfigurationContext(Configuration(context.resources.configuration).apply {
-            setLocale(Locale.forLanguageTag(languageTag))
-        })
-
-    fun createChannels(languageTag: String? = null) {
+    fun createChannels(language: AppLanguage = AppLanguage.SYSTEM) {
+        val resourcesContext = context.withAppLanguage(language)
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
                 REMINDER_CHANNEL,
-                "Medication reminders",
+                resourcesContext.getString(R.string.reminder_channel),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Reminders to take scheduled medication"
+                description = resourcesContext.getString(R.string.reminder_channel_description)
                 enableVibration(true)
             },
         )
         manager.createNotificationChannel(NotificationChannel(SILENT_CHANNEL,
-            localizedContext(languageTag).getString(R.string.reminder_silent_channel), NotificationManager.IMPORTANCE_HIGH).apply {
+            resourcesContext.getString(R.string.reminder_silent_channel), NotificationManager.IMPORTANCE_HIGH).apply {
             setSound(null, null)
             enableVibration(false)
         })
         manager.createNotificationChannel(
             NotificationChannel(
                 TRAVEL_CHANNEL,
-                "Schedule time-zone changes",
+                resourcesContext.getString(R.string.travel_channel),
                 NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = "Questions about manually zoned schedules after travel" },
+            ).apply { description = resourcesContext.getString(R.string.travel_channel_description) },
         )
     }
 
     fun showReminder(occurrence: DoseOccurrence, alias: String?, dosage: String,
         stage: ReminderStage = ReminderStage.DUE, soundEnabled: Boolean = true, alert: Boolean = true,
-        languageTag: String? = null) {
+        language: AppLanguage = AppLanguage.SYSTEM) {
         if (!canPostNotifications()) return
-        val resourcesContext = localizedContext(languageTag)
+        val resourcesContext = context.withAppLanguage(language)
         val title = lockscreenTitle(alias, resourcesContext.getString(R.string.notification_generic_title))
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -118,20 +114,21 @@ class ReminderNotifications(private val context: Context) {
         NotificationManagerCompat.from(context).cancel(reminderNotificationId(doseTimeId))
     }
 
-    fun showTravelQuestion(scheduleId: Long, scheduleName: String) {
+    fun showTravelQuestion(scheduleId: Long, scheduleName: String, language: AppLanguage = AppLanguage.SYSTEM) {
         if (!canPostNotifications()) return
+        val resourcesContext = context.withAppLanguage(language)
         val keep = timeZoneActionIntent(scheduleId, TimeZoneActionReceiver.ACTION_KEEP_MANUAL)
         val useDevice = timeZoneActionIntent(scheduleId, TimeZoneActionReceiver.ACTION_USE_DEVICE)
         val notification = NotificationCompat.Builder(context, TRAVEL_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle("Time zone changed")
-            .setContentText("How should $scheduleName follow time after this trip?")
+            .setContentTitle(resourcesContext.getString(R.string.travel_notification_title))
+            .setContentText(resourcesContext.getString(R.string.travel_notification_text, scheduleName))
             .setStyle(NotificationCompat.BigTextStyle().bigText(
-                "$scheduleName uses a manual time zone. Keep that zone, or change this schedule to follow your device?",
+                resourcesContext.getString(R.string.travel_notification_detail, scheduleName),
             ))
             .setAutoCancel(true)
-            .addAction(0, "Keep selected zone", keep)
-            .addAction(0, "Use device zone", useDevice)
+            .addAction(0, resourcesContext.getString(R.string.travel_keep_zone), keep)
+            .addAction(0, resourcesContext.getString(R.string.travel_use_device_zone), useDevice)
             .build()
         postNotification(travelNotificationId(scheduleId), notification)
     }

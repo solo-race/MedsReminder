@@ -2,6 +2,7 @@ package com.example.medicationreminder.reminders
 
 import com.example.medicationreminder.data.repository.MedicationRepository
 import com.example.medicationreminder.data.settings.AppPreferences
+import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.ReminderStage
 import com.example.medicationreminder.domain.model.ScheduledDose
@@ -42,12 +43,12 @@ class MissedReminderReposter(
         val changed = repository.registerPendingReminder(identity, stage)
         if (!repository.pendingReminders(identity.medicationId).any { it.matches(identity) }) return false
         val sound = preferences?.reminderSoundEnabled?.first() ?: true
-        val languageTag = preferences?.language?.first()?.languageTag
+        val language = preferences?.language?.first() ?: AppLanguage.SYSTEM
         val posted = deliverReminderIfUndecided(dose, identity,
             isDecided = { repository.hasDoseDecision(identity) },
             showReminder = { notifications.showReminder(identity, dose.medicationAlias, dose.dosageText,
                 if (identity.scheduledFor.isAfter(now)) ReminderStage.PRE else ReminderStage.DUE,
-                soundEnabled = sound, alert = alert && changed, languageTag = languageTag) },
+                soundEnabled = sound, alert = alert && changed, language = language) },
             cancelVisibleReminder = { notifications.cancelReminder(identity) }, persistedPending = true)
         if (legacy && posted) notifications.cancelLegacyReminder(identity.doseTimeId)
         return posted

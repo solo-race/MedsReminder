@@ -13,10 +13,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -98,6 +96,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
+import com.example.medicationreminder.data.settings.withAppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
 import com.example.medicationreminder.domain.model.retainedDoseHistory
 import com.example.medicationreminder.domain.model.MedicationDraft
@@ -130,29 +129,18 @@ private object Routes {
 
 @Composable
 fun MedicationApp(viewModel: MedicationViewModel) {
-    val language by viewModel.language.collectAsStateWithLifecycle()
+    // Wait for the saved choice so cold startup cannot briefly override an explicit language.
+    val language = viewModel.language.collectAsStateWithLifecycle().value ?: return
     val context = LocalContext.current
-    val localizedContext = remember(language) { context.withAppLanguage(language) }
-
-    val localizedConfiguration = remember(language) {
-        Configuration(localizedContext.resources.configuration).apply {
-            setLocale(Locale.forLanguageTag(language.languageTag))
-        }
+    val configuration = LocalConfiguration.current
+    val localizedContext = remember(context, language, configuration) {
+        context.withAppLanguage(language)
     }
     CompositionLocalProvider(
         LocalContext provides localizedContext,
-        LocalConfiguration provides localizedConfiguration,
+        LocalConfiguration provides localizedContext.resources.configuration,
     ) {
         MedicationAppContent(viewModel, language)
-    }
-}
-
-private fun Context.withAppLanguage(language: AppLanguage): Context {
-    val configuration = Configuration(resources.configuration)
-    configuration.setLocale(Locale.forLanguageTag(language.languageTag))
-    val localizedResources = createConfigurationContext(configuration).resources
-    return object : ContextWrapper(this) {
-        override fun getResources(): android.content.res.Resources = localizedResources
     }
 }
 
@@ -679,6 +667,11 @@ private fun LanguageSetting(language: AppLanguage, onLanguageSelected: (AppLangu
             Text(stringResource(R.string.language_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(10.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = language == AppLanguage.SYSTEM,
+                    onClick = { onLanguageSelected(AppLanguage.SYSTEM) },
+                    label = { Text(stringResource(R.string.language_system)) },
+                )
                 FilterChip(
                     selected = language == AppLanguage.ENGLISH,
                     onClick = { onLanguageSelected(AppLanguage.ENGLISH) },

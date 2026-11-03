@@ -42,6 +42,7 @@
     <string name="privacy">Privacy</string>
     <string name="privacy_description">Medication details, photos, and history are stored only on this device. No account or cloud sync is used.</string>
     <string name="language_title">Language</string>
+    <string name="language_system">Follow system</string>
     <string name="language_description">Choose the app language.</string>
     <string name="language_english">English</string>
     <string name="language_simplified_chinese">Simplified Chinese</string>
@@ -116,6 +117,15 @@
     <string name="detail_photo_description">Medication photo</string>
     <string name="detail_pending_heading">Unconfirmed dose</string>
     <string name="reminder_silent_channel">Silent medication reminders</string>
+    <string name="reminder_channel">Medication reminders</string>
+    <string name="reminder_channel_description">Reminders to take scheduled medication</string>
+    <string name="travel_channel">Schedule time-zone changes</string>
+    <string name="travel_channel_description">Questions about manually zoned schedules after travel</string>
+    <string name="travel_notification_title">Time zone changed</string>
+    <string name="travel_notification_text">How should %1$s follow time after this trip?</string>
+    <string name="travel_notification_detail">%1$s uses a manual time zone. Keep that zone, or change this schedule to follow your device?</string>
+    <string name="travel_keep_zone">Keep selected zone</string>
+    <string name="travel_use_device_zone">Use device zone</string>
     <string name="reminder_due_soon">Medication due soon</string>
     <string name="reminder_due_now">Medication is due</string>
     <string name="reminder_sound">Reminder sound</string>

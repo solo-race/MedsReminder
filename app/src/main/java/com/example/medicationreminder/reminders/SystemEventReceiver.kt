@@ -6,10 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.example.medicationreminder.appContainer
+import com.example.medicationreminder.data.settings.AppLanguage
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 internal fun systemEventRequiresReschedule(action: String?): Boolean = action == Intent.ACTION_BOOT_COMPLETED ||
     action == Intent.ACTION_MY_PACKAGE_REPLACED ||
@@ -26,6 +28,12 @@ class SystemEventReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
+                if (intent.action == Intent.ACTION_LOCALE_CHANGED) {
+                    if (container.preferences.language.first() == AppLanguage.SYSTEM) {
+                        container.refreshReminderLanguage()
+                    }
+                    return@launch
+                }
                 if (systemEventRequiresReschedule(intent.action)) {
                     val exactAlarmsAllowed = container.scheduler.canScheduleExactAlarms()
                     if (systemEventCanReschedule(intent.action, exactAlarmsAllowed)) {
@@ -52,7 +60,8 @@ class SystemEventReceiver : BroadcastReceiver() {
                             .associateBy { it.scheduleId }
                         manualSchedules.forEach { schedule ->
                             medications[schedule.id]?.let { dose ->
-                                container.notifications.showTravelQuestion(schedule.id, dose.medicationName)
+                                container.notifications.showTravelQuestion(schedule.id, dose.medicationName,
+                                    container.preferences.language.first())
                             }
                         }
                     }

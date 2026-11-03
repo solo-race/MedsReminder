@@ -1,6 +1,9 @@
 package com.example.medicationreminder.data.settings
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Configuration
+import java.util.Locale
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -12,14 +15,32 @@ import kotlinx.coroutines.flow.map
 
 private val Context.reminderDataStore by preferencesDataStore(name = "reminder_preferences")
 
-enum class AppLanguage(val languageTag: String) {
+enum class AppLanguage(val preferenceValue: String) {
+    SYSTEM("system"),
     ENGLISH("en"),
     SIMPLIFIED_CHINESE("zh-CN"),
     ;
 
     companion object {
         fun fromTag(languageTag: String?): AppLanguage =
-            entries.firstOrNull { it.languageTag == languageTag } ?: ENGLISH
+            entries.firstOrNull { it.preferenceValue == languageTag } ?: SYSTEM
+    }
+
+    fun localeFor(systemLocale: Locale): Locale = when (this) {
+        SYSTEM -> if (systemLocale.language == "zh") Locale.SIMPLIFIED_CHINESE else Locale.ENGLISH
+        ENGLISH -> Locale.ENGLISH
+        SIMPLIFIED_CHINESE -> Locale.SIMPLIFIED_CHINESE
+    }
+}
+
+/** Resolve from the unmodified context each time; never change the process/system locale. */
+fun Context.withAppLanguage(language: AppLanguage): Context {
+    val configuration = Configuration(resources.configuration)
+    configuration.setLocale(language.localeFor(configuration.locales[0]))
+    val localizedResources = createConfigurationContext(configuration).resources
+    // Keep the Activity's owners/services available to Compose and embedded views.
+    return object : ContextWrapper(this) {
+        override fun getResources(): android.content.res.Resources = localizedResources
     }
 }
 
@@ -29,7 +50,10 @@ class AppPreferences(private val context: Context) {
         .distinctUntilChanged()
 
     suspend fun setLanguage(language: AppLanguage) {
-        context.reminderDataStore.edit { it[APP_LANGUAGE] = language.languageTag }
+        context.reminderDataStore.edit {
+            if (language == AppLanguage.SYSTEM) it.remove(APP_LANGUAGE)
+            else it[APP_LANGUAGE] = language.preferenceValue
+        }
     }
 
     val permissionPromptDismissed: Flow<Boolean> = context.reminderDataStore.data

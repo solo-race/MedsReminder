@@ -13,8 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
-import android.content.res.Configuration
-import java.util.Locale
+import com.example.medicationreminder.data.settings.withAppLanguage
 import android.widget.Toast
 import android.util.Log
 import com.example.medicationreminder.R
@@ -32,9 +31,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
             } catch (error: Exception) {
                 Log.e("ReminderAction", "Unable to record dose decision; notification retained", error)
                 val language = context.appContainer.preferences.language.first()
-                val message = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
-                    setLocale(Locale.forLanguageTag(language.languageTag))
-                }).getString(R.string.error_decide_dose)
+                val message = context.withAppLanguage(language).getString(R.string.error_decide_dose)
                 withContext(Dispatchers.Main) { Toast.makeText(context, message, Toast.LENGTH_LONG).show() }
             } finally {
                 pendingResult.finish()

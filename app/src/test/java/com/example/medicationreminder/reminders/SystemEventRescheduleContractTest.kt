@@ -21,6 +21,7 @@ class SystemEventRescheduleContractTest {
     @Test
     fun unrelatedOrMissingActionDoesNotTriggerScheduleRebuild() {
         assertFalse(systemEventRequiresReschedule(Intent.ACTION_SCREEN_ON))
+        assertFalse(systemEventRequiresReschedule(Intent.ACTION_LOCALE_CHANGED))
         assertFalse(systemEventRequiresReschedule(null))
     }
 }

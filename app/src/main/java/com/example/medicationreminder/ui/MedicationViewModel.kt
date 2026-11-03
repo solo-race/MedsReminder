@@ -74,7 +74,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     val language = container.preferences.language.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
-        AppLanguage.ENGLISH,
+        null,
     )
 
     val permissionPromptDismissed = container.preferences.permissionPromptDismissed.stateIn(
@@ -183,8 +183,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     fun setLanguage(language: AppLanguage) {
         viewModelScope.launch {
             container.preferences.setLanguage(language)
-            container.notifications.createChannels(language.languageTag)
-            container.missedReminderReposter.restorePending()
+            container.refreshReminderLanguage()
         }
     }
 

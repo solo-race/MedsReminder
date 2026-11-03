@@ -38,7 +38,10 @@ class MedicationReminderApplication : Application() {
         // force-stop recovery and devices that remove pending alarms without broadcasting a
         // recoverable system event.
         applicationScope.launch {
-            runCatching { container.restoreReminders() }
+            runCatching {
+                container.notifications.createChannels(container.preferences.language.first())
+                container.restoreReminders()
+            }
                 .onSuccess { result ->
                     if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                         Log.i(TAG, "Reminder alarm restore is waiting for exact-alarm access")
@@ -72,6 +75,11 @@ class AppContainer(context: Context) {
     val scheduler = ReminderScheduler(context, repository) { occurrence ->
         missedReminderReposter.deliverOccurrence(occurrence,
             com.example.medicationreminder.domain.model.ReminderStage.PRE, alert = true)
+    }
+
+    suspend fun refreshReminderLanguage() {
+        notifications.createChannels(preferences.language.first())
+        missedReminderReposter.restorePending()
     }
 
     suspend fun restoreReminders(): ScheduleResult = recoveryMutex.withLock {
