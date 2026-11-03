@@ -2,6 +2,7 @@ package com.example.medicationreminder.ui
 
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.ScheduledDose
+import com.example.medicationreminder.domain.model.ScheduleMode
 import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
 import com.example.medicationreminder.reminders.nextUndecidedOccurrence
 import java.time.Instant
@@ -19,8 +20,8 @@ internal suspend fun homeDetailOccurrence(
     isDecided: suspend (DoseOccurrence) -> Boolean,
 ): DoseOccurrence? {
     val medicationDoses = doses.filter { it.medicationId == medicationId }
-    val due = medicationDoses.mapNotNull { dose ->
-        NextDoseCalculator.mostRecentOverdueOccurrence(dose.time, dose.weekdays, dose.zoneId, now)
+    val due = medicationDoses.filter { it.scheduleMode == ScheduleMode.FIXED_TIMES }.mapNotNull { dose ->
+        NextDoseCalculator.mostRecentOverdueOccurrence(dose, now)
             ?.let(dose::occurrenceAt)
     }.sortedWith(compareByDescending<DoseOccurrence> { it.scheduledFor }.thenBy { it.doseTimeId })
     for (occurrence in due) {

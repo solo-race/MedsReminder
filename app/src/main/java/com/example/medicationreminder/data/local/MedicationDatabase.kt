@@ -14,8 +14,9 @@ import java.time.ZoneId
         MedicationScheduleEntity::class,
         DoseTimeEntity::class,
         DoseEventEntity::class,
+        PendingReminderEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -25,7 +26,32 @@ abstract class MedicationDatabase : RoomDatabase() {
     abstract fun doseTimeDao(): DoseTimeDao
     abstract fun doseEventDao(): DoseEventDao
 
+    abstract fun pendingReminderDao(): PendingReminderDao
+
     companion object {
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE medication_schedules ADD COLUMN scheduleMode TEXT NOT NULL DEFAULT 'FIXED_TIMES'")
+                db.execSQL("ALTER TABLE medication_schedules ADD COLUMN intervalMinutes INTEGER")
+                db.execSQL("ALTER TABLE medication_schedules ADD COLUMN anchorEpochMillis INTEGER")
+                db.execSQL("ALTER TABLE medications ADD COLUMN doseAmount TEXT")
+                db.execSQL("ALTER TABLE medications ADD COLUMN doseUnit TEXT")
+                db.execSQL("ALTER TABLE dose_events ADD COLUMN doseAmountSnapshot TEXT")
+                db.execSQL("ALTER TABLE dose_events ADD COLUMN doseUnitSnapshot TEXT")
+                db.execSQL("ALTER TABLE dose_events ADD COLUMN dosageTextSnapshot TEXT")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS pending_reminders (
+                        doseTimeId INTEGER NOT NULL, scheduledForEpochMillis INTEGER NOT NULL,
+                        medicationId INTEGER NOT NULL, zoneId TEXT NOT NULL, stage TEXT NOT NULL,
+                        PRIMARY KEY(doseTimeId, scheduledForEpochMillis),
+                        FOREIGN KEY(medicationId) REFERENCES medications(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(doseTimeId) REFERENCES dose_times(id) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_pending_reminders_medicationId ON pending_reminders(medicationId)")
+            }
+        }
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE medications ADD COLUMN alias TEXT")

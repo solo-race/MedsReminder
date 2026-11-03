@@ -134,11 +134,7 @@ class RoomMedicationRepositoryDoseDecisionTest {
         )
 
         assertTrue(
-            repository.hasDoseDecisionOnLocalDay(
-                rebuiltOccurrence.doseTimeId,
-                rebuiltOccurrence.scheduledFor,
-                rebuiltOccurrence.zoneId,
-            ),
+            repository.hasDoseDecision(rebuiltOccurrence),
         )
         assertEquals(
             DoseDecisionResult.AlreadyDecided(DoseStatus.TAKEN),

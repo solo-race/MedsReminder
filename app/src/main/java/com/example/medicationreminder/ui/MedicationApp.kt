@@ -97,6 +97,8 @@ import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
 import com.example.medicationreminder.domain.model.MedicationDraft
+import com.example.medicationreminder.domain.model.ScheduleMode
+import com.example.medicationreminder.domain.model.scheduledDose
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.TimeZoneMode
 import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
@@ -379,7 +381,9 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
     val ordered = remember(plans, now) {
         plans.sortedBy { plan ->
             plan.times.mapNotNull { time ->
-                NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
+                if (plan.schedule.scheduleMode == ScheduleMode.FIXED_TIMES) {
+                    NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
+                } else plan.scheduledDose(time.id)?.let { NextDoseCalculator.nextOccurrence(it, now) }
             }.minOrNull()
         }
     }
@@ -412,7 +416,9 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
 private fun MedicationCard(plan: MedicationPlan, now: Instant, onOpenDetail: (Long) -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
     val next = plan.times.mapNotNull { time ->
-        NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
+        if (plan.schedule.scheduleMode == ScheduleMode.FIXED_TIMES) {
+            NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
+        } else plan.scheduledDose(time.id)?.let { NextDoseCalculator.nextOccurrence(it, now) }
     }.minOrNull()
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onOpenDetail(plan.medication.id) },
@@ -781,6 +787,11 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                             times = times.toList(),
                             existingPhotoPath = plan?.medication?.photoPath,
                             alias = alias,
+                            scheduleMode = plan?.schedule?.scheduleMode ?: ScheduleMode.FIXED_TIMES,
+                            intervalMinutes = plan?.schedule?.intervalMinutes,
+                            anchorEpochMillis = plan?.schedule?.anchorEpochMillis,
+                            doseAmount = plan?.medication?.doseAmount,
+                            doseUnit = plan?.medication?.doseUnit,
                         ),
                         previousPlan = plan,
                         newImageUri = selectedPhotoUri,

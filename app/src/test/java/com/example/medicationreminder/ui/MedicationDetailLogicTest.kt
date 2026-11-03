@@ -189,4 +189,26 @@ class MedicationDetailLogicTest {
         scheduledFor = Instant.parse(instant),
         zoneId = zone,
     )
+    @Test
+    fun intervalValidationIgnoresDisplayZoneButRejectsOffGridInstants() {
+        val due = Instant.parse("2026-11-03T08:00:00Z")
+        val interval = plan.copy(schedule = plan.schedule.copy(
+            scheduleMode = com.example.medicationreminder.domain.model.ScheduleMode.INTERVAL,
+            anchorEpochMillis = due.toEpochMilli(), intervalMinutes = 720, weekdays = emptySet()))
+        val occurrence = occurrence("2026-11-03T20:00:00Z").copy(zoneId = ZoneId.of("America/New_York"))
+        assertTrue(isOccurrenceCompatibleWithPlan(interval, occurrence))
+        assertFalse(isOccurrenceCompatibleWithPlan(interval, occurrence.copy(scheduledFor = due.minusSeconds(1))))
+        assertFalse(isOccurrenceCompatibleWithPlan(interval, occurrence.copy(scheduledFor = due.plusSeconds(60))))
+    }
+
+    @Test
+    fun persistedFixedPendingSurvivesZoneChangeButNotDisabledOrDeletedSlot() {
+        val explicit = occurrence("2026-09-07T00:00:00Z")
+        val travelled = plan.copy(schedule = plan.schedule.copy(manualZoneId = "America/New_York"))
+        assertFalse(isOccurrenceCompatibleWithPlan(travelled, explicit))
+        assertTrue(isOccurrenceCompatibleWithPlan(travelled, explicit, persistedPending = true))
+        assertFalse(isOccurrenceCompatibleWithPlan(travelled.copy(times = emptyList()), explicit, persistedPending = true))
+        assertFalse(isOccurrenceCompatibleWithPlan(travelled.copy(medication = plan.medication.copy(enabled = false)), explicit, persistedPending = true))
+    }
+
 }

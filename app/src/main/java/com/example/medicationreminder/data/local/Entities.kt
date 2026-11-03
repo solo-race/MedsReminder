@@ -5,6 +5,8 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.example.medicationreminder.domain.model.ScheduleMode
+import com.example.medicationreminder.domain.model.ReminderStage
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.TimeZoneMode
 
@@ -19,6 +21,8 @@ data class MedicationEntity(
     val enabled: Boolean,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
+    val doseAmount: String? = null,
+    val doseUnit: String? = null,
 )
 
 @Entity(
@@ -38,6 +42,9 @@ data class MedicationScheduleEntity(
     val weekdaysMask: Int,
     val timeZoneMode: TimeZoneMode,
     val manualZoneId: String?,
+    @ColumnInfo(defaultValue = "'FIXED_TIMES'") val scheduleMode: ScheduleMode = ScheduleMode.FIXED_TIMES,
+    val intervalMinutes: Long? = null,
+    val anchorEpochMillis: Long? = null,
 )
 
 @Entity(
@@ -73,4 +80,26 @@ data class DoseEventEntity(
     @ColumnInfo(defaultValue = "0") val scheduledLocalEpochDay: Long,
     val status: DoseStatus,
     val actionedAtEpochMillis: Long,
+    val doseAmountSnapshot: String? = null,
+    val doseUnitSnapshot: String? = null,
+    val dosageTextSnapshot: String? = null,
+)
+
+@Entity(
+    tableName = "pending_reminders",
+    primaryKeys = ["doseTimeId", "scheduledForEpochMillis"],
+    foreignKeys = [
+        ForeignKey(entity = MedicationEntity::class, parentColumns = ["id"],
+            childColumns = ["medicationId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = DoseTimeEntity::class, parentColumns = ["id"],
+            childColumns = ["doseTimeId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["medicationId"])],
+)
+data class PendingReminderEntity(
+    val doseTimeId: Long,
+    val scheduledForEpochMillis: Long,
+    val medicationId: Long,
+    val zoneId: String,
+    val stage: ReminderStage,
 )

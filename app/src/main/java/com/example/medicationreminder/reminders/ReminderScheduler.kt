@@ -50,11 +50,7 @@ class ReminderScheduler(
         if (!canScheduleExactAlarms()) return ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
 
         val occurrence = nextUndecidedOccurrence(dose, boundary) { candidate ->
-            repository.hasDoseDecisionOnLocalDay(
-                candidate.doseTimeId,
-                candidate.scheduledFor,
-                candidate.zoneId,
-            )
+            repository.hasDoseDecision(candidate)
         } ?: return ScheduleResult.SCHEDULED
         return if (scheduleAt(occurrence)) {
             ScheduleResult.SCHEDULED

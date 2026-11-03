@@ -23,18 +23,17 @@ class ReminderDismissReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
+                val persistedPending = container.repository.pendingReminders(occurrence.medicationId)
+                    .any { it.matches(occurrence) }
                 val dose = container.repository.activeScheduledDoses()
-                    .firstOrNull { it.matchesOccurrence(occurrence) }
+                    .firstOrNull { it.matchesOccurrence(occurrence, persistedPending) }
                     ?: return@launch
                 deliverReminderIfUndecided(
                     dose = dose,
+                    persistedPending = persistedPending,
                     occurrence = occurrence,
                     isDecided = {
-                        container.repository.hasDoseDecisionOnLocalDay(
-                            occurrence.doseTimeId,
-                            occurrence.scheduledFor,
-                            occurrence.zoneId,
-                        )
+                        container.repository.hasDoseDecision(occurrence)
                     },
                     showReminder = {
                         container.notifications.showReminder(

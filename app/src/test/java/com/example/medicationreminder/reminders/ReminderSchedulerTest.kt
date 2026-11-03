@@ -152,11 +152,11 @@ class ReminderSchedulerTest {
             override suspend fun saveMedication(draft: MedicationDraft): SaveMedicationResult = error("unused")
             override suspend fun deleteMedication(medicationId: Long): String? = error("unused")
             override suspend fun activeScheduledDoses(): List<ScheduledDose> = doses
-            override suspend fun hasDoseDecisionOnLocalDay(
-                doseTimeId: Long,
-                scheduledFor: Instant,
-                zoneId: ZoneId,
-            ): Boolean = false
+            override suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean = false
+            override suspend fun pendingReminders(medicationId: Long?): List<com.example.medicationreminder.domain.model.PendingReminder> = emptyList()
+            override suspend fun registerPendingReminder(occurrence: DoseOccurrence, stage: com.example.medicationreminder.domain.model.ReminderStage): Boolean = error("unused")
+            override suspend fun deletePendingReminder(occurrence: DoseOccurrence) = error("unused")
+            override suspend fun clearPendingReminders(doseTimeId: Long) = error("unused")
             override suspend fun setScheduleToDeviceTime(scheduleId: Long) = error("unused")
             override suspend fun manualSchedules(): List<MedicationSchedule> = emptyList()
         }

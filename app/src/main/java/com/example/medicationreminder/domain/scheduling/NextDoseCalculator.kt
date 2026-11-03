@@ -1,6 +1,9 @@
 package com.example.medicationreminder.domain.scheduling
 
 import com.example.medicationreminder.domain.model.ScheduledDose
+import com.example.medicationreminder.domain.model.ScheduleMode
+import java.time.Duration
+import java.time.DateTimeException
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -40,6 +43,28 @@ object NextDoseCalculator {
     }
 
     fun nextOccurrence(dose: ScheduledDose, now: Instant = Instant.now()): Instant? =
-        nextOccurrence(dose.time, dose.weekdays, dose.zoneId, now)
+        if (dose.scheduleMode == ScheduleMode.INTERVAL) intervalOccurrence(dose, now, next = true)
+        else nextOccurrence(dose.time, dose.weekdays, dose.zoneId, now)
+
+    fun mostRecentOverdueOccurrence(dose: ScheduledDose, now: Instant): Instant? =
+        if (dose.scheduleMode == ScheduleMode.INTERVAL) intervalOccurrence(dose, now, next = false)
+        else mostRecentOverdueOccurrence(dose.time, dose.weekdays, dose.zoneId, now)
+
+    private fun intervalOccurrence(dose: ScheduledDose, now: Instant, next: Boolean): Instant? {
+        val anchor = dose.anchorEpochMillis?.let(Instant::ofEpochMilli) ?: return null
+        val minutes = dose.intervalMinutes?.takeIf { it in 1..Long.MAX_VALUE / 60 } ?: return null
+        if (now.isBefore(anchor)) return if (next) anchor else null
+        val elapsed = Duration.between(anchor, now)
+        val remainder = elapsed.seconds % (minutes * 60)
+        return try {
+            val candidate = if (next) now.plusSeconds(minutes * 60 - remainder)
+                else now.minusSeconds(remainder)
+            candidate.minusNanos(elapsed.nano.toLong()).also { it.toEpochMilli() }
+        } catch (_: ArithmeticException) {
+            null // No successor representable in persisted epoch milliseconds.
+        } catch (_: DateTimeException) {
+            null
+        }
+    }
 }
 

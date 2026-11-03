@@ -79,13 +79,18 @@ data class DoseEventRow(
     val scheduledForEpochMillis: Long,
     val status: com.example.medicationreminder.domain.model.DoseStatus,
     val actionedAtEpochMillis: Long,
+    val medicationId: Long,
+    val doseAmountSnapshot: String?,
+    val doseUnitSnapshot: String?,
+    val dosageTextSnapshot: String?,
 )
 
 @Dao
 interface DoseEventDao {
     @Query(
         """
-        SELECT e.id, m.name AS medicationName, m.dosageText AS dosageText,
+        SELECT e.id, e.medicationId, m.name AS medicationName, m.dosageText AS dosageText,
+               e.doseAmountSnapshot, e.doseUnitSnapshot, e.dosageTextSnapshot,
                e.scheduledForEpochMillis, e.status, e.actionedAtEpochMillis
         FROM dose_events e
         INNER JOIN medications m ON m.id = e.medicationId
@@ -96,6 +101,9 @@ interface DoseEventDao {
 
     @Insert
     suspend fun insert(event: DoseEventEntity)
+
+    @Query("SELECT * FROM dose_events WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis = :scheduledFor LIMIT 1")
+    suspend fun forOccurrence(doseTimeId: Long, scheduledFor: Long): DoseEventEntity?
 
     @Query("DELETE FROM dose_events WHERE actionedAtEpochMillis < :cutoffEpochMillis")
     suspend fun deleteOlderThan(cutoffEpochMillis: Long)
@@ -121,4 +129,31 @@ interface DoseEventDao {
         """
     )
     suspend fun existsForLogicalDay(doseTimeId: Long, scheduledLocalEpochDay: Long): Boolean
+}
+
+@Dao
+interface PendingReminderDao {
+    @Query("SELECT * FROM pending_reminders ORDER BY scheduledForEpochMillis, doseTimeId")
+    suspend fun getAll(): List<PendingReminderEntity>
+
+    @Query("SELECT * FROM pending_reminders WHERE medicationId = :medicationId ORDER BY scheduledForEpochMillis, doseTimeId")
+    suspend fun getForMedication(medicationId: Long): List<PendingReminderEntity>
+
+    @Query("SELECT * FROM pending_reminders WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis = :scheduledFor")
+    suspend fun get(doseTimeId: Long, scheduledFor: Long): PendingReminderEntity?
+
+    @Insert(onConflict = androidx.room.OnConflictStrategy.IGNORE)
+    suspend fun insert(reminder: PendingReminderEntity): Long
+
+    @Query("UPDATE pending_reminders SET stage = 'DUE' WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis = :scheduledFor AND stage = 'PRE'")
+    suspend fun advanceToDue(doseTimeId: Long, scheduledFor: Long): Int
+
+    @Query("DELETE FROM pending_reminders WHERE doseTimeId = :doseTimeId AND scheduledForEpochMillis = :scheduledFor")
+    suspend fun delete(doseTimeId: Long, scheduledFor: Long)
+
+    @Query("DELETE FROM pending_reminders WHERE doseTimeId = :doseTimeId")
+    suspend fun deleteForSlot(doseTimeId: Long)
+
+    @Query("DELETE FROM pending_reminders WHERE medicationId = :medicationId")
+    suspend fun deleteForMedication(medicationId: Long)
 }

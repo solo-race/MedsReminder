@@ -15,18 +15,14 @@ class MissedReminderReposter(
 ) {
     suspend fun repostUndecidedOverdue(now: Instant = Instant.now()) {
         plan(repository.activeScheduledDoses(), now) { dose, occurredAt ->
-            repository.hasDoseDecisionOnLocalDay(dose.doseTimeId, occurredAt, dose.zoneId)
+            repository.hasDoseDecision(dose.occurrenceAt(occurredAt))
         }.forEach { missed ->
             val occurrence = missed.dose.occurrenceAt(missed.scheduledFor)
             deliverReminderIfUndecided(
                 dose = missed.dose,
                 occurrence = occurrence,
                 isDecided = {
-                    repository.hasDoseDecisionOnLocalDay(
-                        occurrence.doseTimeId,
-                        occurrence.scheduledFor,
-                        occurrence.zoneId,
-                    )
+                    repository.hasDoseDecision(occurrence)
                 },
                 showReminder = {
                     notifications.showReminder(
@@ -51,12 +47,7 @@ class MissedReminderReposter(
             hasDecisionOnLocalDay: suspend (ScheduledDose, Instant) -> Boolean,
         ): List<MissedDose> = buildList {
             for (dose in doses) {
-                val occurredAt = NextDoseCalculator.mostRecentOverdueOccurrence(
-                    dose.time,
-                    dose.weekdays,
-                    dose.zoneId,
-                    now,
-                ) ?: continue
+                val occurredAt = NextDoseCalculator.mostRecentOverdueOccurrence(dose, now) ?: continue
                 if (!hasDecisionOnLocalDay(dose, occurredAt)) add(MissedDose(dose, occurredAt))
             }
         }

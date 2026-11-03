@@ -52,6 +52,7 @@ import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.TimeZoneMode
+import com.example.medicationreminder.domain.model.scheduledDose
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -86,15 +87,10 @@ internal fun preferredDetailOccurrence(
     upcomingOccurrence: DoseOccurrence?,
 ): DoseOccurrence? = explicitOccurrence ?: upcomingOccurrence
 
-internal fun isOccurrenceCompatibleWithPlan(plan: MedicationPlan, occurrence: DoseOccurrence): Boolean {
-    if (!plan.medication.enabled || plan.medication.id != occurrence.medicationId) return false
-    val zoneId = plan.schedule.zoneIdForDetail()
-    if (zoneId != occurrence.zoneId) return false
-    val doseTime = plan.times.firstOrNull { it.id == occurrence.doseTimeId && it.enabled } ?: return false
-    val local = occurrence.scheduledFor.atZone(zoneId)
-    if (local.dayOfWeek !in plan.schedule.weekdays) return false
-    // Use the same DST gap/overlap resolution as the scheduler and repository validation.
-    return local.toLocalDate().atTime(doseTime.time).atZone(zoneId).toInstant() == occurrence.scheduledFor
+internal fun isOccurrenceCompatibleWithPlan(
+    plan: MedicationPlan, occurrence: DoseOccurrence, persistedPending: Boolean = false,
+): Boolean {
+    return plan.scheduledDose(occurrence.doseTimeId)?.matchesOccurrence(occurrence, persistedPending) == true
 }
 
 @Composable
@@ -112,7 +108,7 @@ internal fun MedicationDetailScreen(
         val loadedState = when {
             plan == null -> DetailDoseState(stale = true)
             explicitOccurrence != null -> {
-                if (!isOccurrenceCompatibleWithPlan(plan, explicitOccurrence)) {
+                if (!isOccurrenceCompatibleWithPlan(plan, explicitOccurrence, viewModel.isPersistedPending(explicitOccurrence))) {
                     DetailDoseState(occurrence = explicitOccurrence, stale = true)
                 } else {
                     DetailDoseState(

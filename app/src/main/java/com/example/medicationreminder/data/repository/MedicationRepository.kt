@@ -1,6 +1,7 @@
 package com.example.medicationreminder.data.repository
 
 import androidx.room.withTransaction
+import com.example.medicationreminder.data.local.PendingReminderEntity
 import com.example.medicationreminder.data.local.DoseEventEntity
 import com.example.medicationreminder.data.local.DoseTimeEntity
 import com.example.medicationreminder.data.local.MedicationDatabase
@@ -17,6 +18,12 @@ import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.MedicationSchedule
 import com.example.medicationreminder.domain.model.ScheduledDose
 import com.example.medicationreminder.domain.model.TimeZoneMode
+import com.example.medicationreminder.domain.model.ScheduleMode
+import com.example.medicationreminder.domain.model.ReminderStage
+import com.example.medicationreminder.domain.model.PendingReminder
+import com.example.medicationreminder.domain.model.scheduledDose
+import com.example.medicationreminder.domain.model.zoneId
+import java.math.BigDecimal
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalTime
@@ -31,7 +38,12 @@ interface MedicationRepository {
     suspend fun saveMedication(draft: MedicationDraft): SaveMedicationResult
     suspend fun deleteMedication(medicationId: Long): String?
     suspend fun activeScheduledDoses(): List<ScheduledDose>
-    suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean
+    suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean
+    suspend fun pendingReminders(medicationId: Long? = null): List<PendingReminder>
+    /** True only when a new pending or PRE -> DUE transition was saved. */
+    suspend fun registerPendingReminder(occurrence: DoseOccurrence, stage: ReminderStage): Boolean
+    suspend fun deletePendingReminder(occurrence: DoseOccurrence)
+    suspend fun clearPendingReminders(doseTimeId: Long)
     suspend fun setScheduleToDeviceTime(scheduleId: Long)
     suspend fun manualSchedules(): List<MedicationSchedule>
 }
@@ -93,20 +105,14 @@ internal fun isOccurrenceActionable(
     schedule: MedicationScheduleEntity?,
     doseTime: DoseTimeEntity?,
     occurrence: DoseOccurrence,
+    persistedPending: Boolean = false,
 ): Boolean {
     if (medication == null || !medication.enabled || medication.id != occurrence.medicationId) return false
     if (schedule == null || schedule.medicationId != medication.id) return false
     if (doseTime == null || !doseTime.enabled || doseTime.id != occurrence.doseTimeId || doseTime.scheduleId != schedule.id) return false
 
-    val zoneId = schedule.toDomain().zoneId()
-    if (zoneId != occurrence.zoneId) return false
-
-    val occurrenceDate = occurrence.scheduledFor.atZone(zoneId).toLocalDate()
-    if (occurrenceDate.dayOfWeek !in schedule.weekdaysMask.toWeekdays()) return false
-
-    val scheduledTime = LocalTime.of(doseTime.minuteOfDay / 60, doseTime.minuteOfDay % 60)
-    val expectedInstant = occurrenceDate.atTime(scheduledTime).atZone(zoneId).toInstant()
-    return expectedInstant == occurrence.scheduledFor
+    return MedicationPlan(medication.toDomain(), schedule.toDomain(), listOf(doseTime.toDomain()))
+        .scheduledDose(doseTime.id)?.matchesOccurrence(occurrence, persistedPending) == true
 }
 
 internal class RoomMedicationRepository(
@@ -116,6 +122,7 @@ internal class RoomMedicationRepository(
     private val scheduleDao = database.scheduleDao()
     private val doseTimeDao = database.doseTimeDao()
     private val doseEventDao = database.doseEventDao()
+    private val pendingDao = database.pendingReminderDao()
 
     override fun observeMedicationPlans(): Flow<List<MedicationPlan>> = combine(
         medicationDao.observeAll(),
@@ -144,15 +151,36 @@ internal class RoomMedicationRepository(
                 DoseEvent(
                     id = it.id,
                     medicationName = it.medicationName,
-                    dosageText = it.dosageText,
+                    dosageText = it.dosageTextSnapshot ?: it.dosageText,
                     scheduledFor = Instant.ofEpochMilli(it.scheduledForEpochMillis),
                     status = it.status,
                     actionedAt = Instant.ofEpochMilli(it.actionedAtEpochMillis),
+                    medicationId = it.medicationId,
+                    doseAmountSnapshot = it.doseAmountSnapshot,
+                    doseUnitSnapshot = it.doseUnitSnapshot,
+                    dosageTextSnapshot = it.dosageTextSnapshot,
                 )
             }
         }
 
     override suspend fun saveMedication(draft: MedicationDraft): SaveMedicationResult = database.withTransaction {
+        if (draft.scheduleMode == ScheduleMode.INTERVAL) {
+            val minutes = requireNotNull(draft.intervalMinutes)
+            val anchor = requireNotNull(draft.anchorEpochMillis)
+            require(minutes > 0)
+            // Both the interval and at least its first successor must fit persisted epoch millis.
+            Math.addExact(anchor, Math.multiplyExact(minutes, 60_000L))
+        } else {
+            require(draft.times.isNotEmpty() && draft.weekdays.isNotEmpty())
+        }
+        val amountInput = draft.doseAmount?.trim()?.takeIf { it.isNotEmpty() }
+        val unit = draft.doseUnit?.trim()?.takeIf { it.isNotEmpty() }
+        require((amountInput == null) == (unit == null))
+        val amount = amountInput?.let {
+            val decimal = BigDecimal(it)
+            require(decimal.signum() > 0)
+            decimal.stripTrailingZeros().toPlainString()
+        }
         val now = System.currentTimeMillis()
         val old = draft.id?.let { medicationDao.getById(it) }
         val medicationId = if (old == null) {
@@ -164,6 +192,8 @@ internal class RoomMedicationRepository(
                     photoPath = draft.existingPhotoPath,
                     alias = draft.alias?.trim()?.takeIf { it.isNotEmpty() },
                     enabled = draft.enabled,
+                    doseAmount = amount,
+                    doseUnit = unit,
                     createdAtEpochMillis = now,
                     updatedAtEpochMillis = now,
                 ),
@@ -177,6 +207,8 @@ internal class RoomMedicationRepository(
                     photoPath = draft.existingPhotoPath,
                     alias = draft.alias?.trim()?.takeIf { it.isNotEmpty() },
                     enabled = draft.enabled,
+                    doseAmount = amount,
+                    doseUnit = unit,
                     updatedAtEpochMillis = now,
                 ),
             )
@@ -191,6 +223,9 @@ internal class RoomMedicationRepository(
                     weekdaysMask = draft.weekdays.toMask(),
                     timeZoneMode = draft.timeZoneMode,
                     manualZoneId = draft.manualZoneId,
+                    scheduleMode = draft.scheduleMode,
+                    intervalMinutes = draft.intervalMinutes.takeIf { draft.scheduleMode == ScheduleMode.INTERVAL },
+                    anchorEpochMillis = draft.anchorEpochMillis.takeIf { draft.scheduleMode == ScheduleMode.INTERVAL },
                 ),
             )
         } else {
@@ -199,16 +234,30 @@ internal class RoomMedicationRepository(
                     weekdaysMask = draft.weekdays.toMask(),
                     timeZoneMode = draft.timeZoneMode,
                     manualZoneId = draft.manualZoneId,
+                    scheduleMode = draft.scheduleMode,
+                    intervalMinutes = draft.intervalMinutes.takeIf { draft.scheduleMode == ScheduleMode.INTERVAL },
+                    anchorEpochMillis = draft.anchorEpochMillis.takeIf { draft.scheduleMode == ScheduleMode.INTERVAL },
                 ),
             )
             existingSchedule.id
         }
 
+        val existingTimes = doseTimeDao.getForSchedule(scheduleId)
+        val sequenceChanged = existingSchedule != null && (
+            existingSchedule.scheduleMode != draft.scheduleMode ||
+                (draft.scheduleMode == ScheduleMode.INTERVAL && (
+                    existingSchedule.intervalMinutes != draft.intervalMinutes ||
+                        existingSchedule.anchorEpochMillis != draft.anchorEpochMillis))
+            )
         val reconciliation = reconcileDoseTimes(
             scheduleId = scheduleId,
-            existing = doseTimeDao.getForSchedule(scheduleId),
-            desiredMinutes = draft.times.map { it.toMinuteOfDay() },
+            existing = if (sequenceChanged) emptyList() else existingTimes,
+            // An interval has one real stable slot; its wall-clock minute is not used.
+            desiredMinutes = if (draft.scheduleMode == ScheduleMode.INTERVAL) listOf(0)
+                else draft.times.map { it.toMinuteOfDay() },
         )
+        if (sequenceChanged) doseTimeDao.deleteByIds(existingTimes.map { it.id })
+        if (!draft.enabled) pendingDao.deleteForMedication(medicationId)
         if (reconciliation.idsToDelete.isNotEmpty()) {
             doseTimeDao.deleteByIds(reconciliation.idsToDelete)
         }
@@ -249,6 +298,11 @@ internal class RoomMedicationRepository(
                         time = time.toDomain().time,
                         weekdays = schedule.weekdaysMask.toWeekdays(),
                         zoneId = zone,
+                        scheduleMode = schedule.scheduleMode,
+                        intervalMinutes = schedule.intervalMinutes,
+                        anchorEpochMillis = schedule.anchorEpochMillis,
+                        doseAmount = medication.doseAmount,
+                        doseUnit = medication.doseUnit,
                     )
                 }
             }
@@ -260,19 +314,23 @@ internal class RoomMedicationRepository(
             val medication = medicationDao.getById(occurrence.medicationId)
             val schedule = scheduleDao.getForMedication(occurrence.medicationId)
             val doseTime = doseTimeDao.getById(occurrence.doseTimeId)
-            if (!isOccurrenceActionable(medication, schedule, doseTime, occurrence)) {
+            val pending = pendingDao.get(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
+            if (!isOccurrenceActionable(medication, schedule, doseTime, occurrence,
+                    pending?.medicationId == occurrence.medicationId)) {
                 return@withTransaction DoseDecisionResult.StaleOccurrence
             }
 
             val scheduledLocalEpochDay = occurrence.scheduledFor
-                .atZone(occurrence.zoneId)
+                .atZone(pending?.zoneId?.let(ZoneId::of) ?: occurrence.zoneId)
                 .toLocalDate()
                 .toEpochDay()
-            val existing = doseEventDao.firstForLogicalDay(
-                occurrence.doseTimeId,
-                scheduledLocalEpochDay,
-            )
+            val existing = if (schedule?.scheduleMode == ScheduleMode.INTERVAL) {
+                doseEventDao.forOccurrence(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
+            } else {
+                doseEventDao.firstForLogicalDay(occurrence.doseTimeId, scheduledLocalEpochDay)
+            }
             if (existing != null) {
+                pendingDao.delete(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
                 return@withTransaction DoseDecisionResult.AlreadyDecided(existing.status)
             }
 
@@ -285,16 +343,55 @@ internal class RoomMedicationRepository(
                     scheduledLocalEpochDay = scheduledLocalEpochDay,
                     status = status,
                     actionedAtEpochMillis = now,
+                    doseAmountSnapshot = medication?.doseAmount,
+                    doseUnitSnapshot = medication?.doseUnit,
+                    dosageTextSnapshot = medication?.dosageText,
                 ),
             )
+            pendingDao.delete(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
             doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
             DoseDecisionResult.Recorded(status)
         }
 
-    override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
-        val scheduledLocalEpochDay = scheduledFor.atZone(zoneId).toLocalDate().toEpochDay()
-        return doseEventDao.existsForLogicalDay(doseTimeId, scheduledLocalEpochDay)
+    override suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean = database.withTransaction {
+        val slot = doseTimeDao.getById(occurrence.doseTimeId)
+        val schedule = slot?.let { scheduleDao.getById(it.scheduleId) }
+        if (schedule?.scheduleMode == ScheduleMode.INTERVAL) {
+            doseEventDao.forOccurrence(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli()) != null
+        } else {
+            val pending = pendingDao.get(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
+            val zone = pending?.zoneId?.let(ZoneId::of) ?: occurrence.zoneId
+            doseEventDao.existsForLogicalDay(occurrence.doseTimeId,
+                occurrence.scheduledFor.atZone(zone).toLocalDate().toEpochDay())
+        }
     }
+
+    override suspend fun pendingReminders(medicationId: Long?): List<PendingReminder> =
+        (if (medicationId == null) pendingDao.getAll() else pendingDao.getForMedication(medicationId)).map {
+            PendingReminder(DoseOccurrence(it.medicationId, it.doseTimeId,
+                Instant.ofEpochMilli(it.scheduledForEpochMillis), ZoneId.of(it.zoneId)), it.stage)
+        }
+
+    override suspend fun registerPendingReminder(occurrence: DoseOccurrence, stage: ReminderStage): Boolean =
+        database.withTransaction {
+            val existing = pendingDao.get(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
+            if (!isOccurrenceActionable(medicationDao.getById(occurrence.medicationId),
+                    scheduleDao.getForMedication(occurrence.medicationId), doseTimeDao.getById(occurrence.doseTimeId),
+                    occurrence, existing?.medicationId == occurrence.medicationId) || hasDoseDecision(occurrence)) {
+                return@withTransaction false
+            }
+            if (existing == null) {
+                pendingDao.insert(PendingReminderEntity(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli(),
+                    occurrence.medicationId, occurrence.zoneId.id, stage)) != -1L
+            } else if (stage == ReminderStage.DUE) {
+                pendingDao.advanceToDue(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli()) > 0
+            } else false
+        }
+
+    override suspend fun deletePendingReminder(occurrence: DoseOccurrence) =
+        pendingDao.delete(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
+
+    override suspend fun clearPendingReminders(doseTimeId: Long) = pendingDao.deleteForSlot(doseTimeId)
 
     override suspend fun setScheduleToDeviceTime(scheduleId: Long) {
         database.withTransaction {
@@ -313,7 +410,7 @@ internal class RoomMedicationRepository(
     }
 }
 
-private fun MedicationEntity.toDomain() = Medication(id, name, dosageText, note, photoPath, enabled, alias)
+private fun MedicationEntity.toDomain() = Medication(id, name, dosageText, note, photoPath, enabled, alias, doseAmount, doseUnit)
 
 private fun MedicationScheduleEntity.toDomain() = MedicationSchedule(
     id = id,
@@ -321,6 +418,9 @@ private fun MedicationScheduleEntity.toDomain() = MedicationSchedule(
     weekdays = weekdaysMask.toWeekdays(),
     timeZoneMode = timeZoneMode,
     manualZoneId = manualZoneId,
+    scheduleMode = scheduleMode,
+    intervalMinutes = intervalMinutes,
+    anchorEpochMillis = anchorEpochMillis,
 )
 
 private fun DoseTimeEntity.toDomain() = DoseTime(
@@ -329,11 +429,6 @@ private fun DoseTimeEntity.toDomain() = DoseTime(
     time = LocalTime.of(minuteOfDay / 60, minuteOfDay % 60),
     enabled = enabled,
 )
-
-private fun MedicationSchedule.zoneId(): ZoneId = when (timeZoneMode) {
-    TimeZoneMode.DEVICE -> ZoneId.systemDefault()
-    TimeZoneMode.MANUAL -> manualZoneId?.let(ZoneId::of) ?: ZoneId.systemDefault()
-}
 
 private fun Set<DayOfWeek>.toMask(): Int = fold(0) { mask, day -> mask or (1 shl (day.value - 1)) }
 

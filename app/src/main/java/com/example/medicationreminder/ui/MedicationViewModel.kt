@@ -13,6 +13,7 @@ import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
+import com.example.medicationreminder.domain.model.ScheduleMode
 import com.example.medicationreminder.reminders.ScheduleResult
 import java.time.Instant
 import java.time.ZoneId
@@ -178,20 +179,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     suspend fun nextActionableOccurrence(medicationId: Long, now: Instant): DoseOccurrence? = withContext(Dispatchers.IO) {
         homeDetailOccurrence(container.repository.activeScheduledDoses(), medicationId, now) { candidate ->
-            container.repository.hasDoseDecisionOnLocalDay(
-                candidate.doseTimeId,
-                candidate.scheduledFor,
-                candidate.zoneId,
-            )
+            container.repository.hasDoseDecision(candidate)
         }
     }
 
+    suspend fun isPersistedPending(occurrence: DoseOccurrence): Boolean = withContext(Dispatchers.IO) {
+        container.repository.pendingReminders(occurrence.medicationId).any { it.matches(occurrence) }
+    }
+
     suspend fun isDoseDecided(occurrence: DoseOccurrence): Boolean = withContext(Dispatchers.IO) {
-        container.repository.hasDoseDecisionOnLocalDay(
-            occurrence.doseTimeId,
-            occurrence.scheduledFor,
-            occurrence.zoneId,
-        )
+        container.repository.hasDoseDecision(occurrence)
     }
 
     fun decideDose(
@@ -214,7 +211,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         removePhoto: Boolean,
         onSaved: () -> Unit,
     ) {
-        if (draft.name.isBlank() || draft.dosageText.isBlank() || draft.times.isEmpty() || draft.weekdays.isEmpty()) {
+        if (draft.name.isBlank() || draft.dosageText.isBlank() || (draft.scheduleMode == ScheduleMode.FIXED_TIMES && (draft.times.isEmpty() || draft.weekdays.isEmpty()))) {
             _error.value = R.string.error_missing_medication_fields
             return
         }

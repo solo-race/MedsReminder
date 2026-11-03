@@ -116,13 +116,13 @@ class MissedReminderReposterIntegrationTest {
     private suspend fun verifyDecisionDuringRestoration(decisionCheck: Int) {
         var checks = 0
         val racingRepository = object : MedicationRepository by repository {
-            override suspend fun hasDoseDecisionOnLocalDay(doseTimeId: Long, scheduledFor: Instant, zoneId: ZoneId): Boolean {
+            override suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean {
                 checks++
                 if (checks == decisionCheck) {
                     assertEquals(if (decisionCheck == 3) 1 else 0, manager.activeNotifications.size)
                     repository.decideDose(occurrence, DoseStatus.SKIPPED)
                 }
-                return repository.hasDoseDecisionOnLocalDay(doseTimeId, scheduledFor, zoneId)
+                return repository.hasDoseDecision(occurrence)
             }
         }
 

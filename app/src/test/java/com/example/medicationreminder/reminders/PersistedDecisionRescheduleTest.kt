@@ -150,11 +150,7 @@ class PersistedDecisionRescheduleTest {
                 dose = dose,
                 after = Instant.parse("2026-09-06T17:45:00Z"),
                 isDecided = { candidate ->
-                    repository.hasDoseDecisionOnLocalDay(
-                        candidate.doseTimeId,
-                        candidate.scheduledFor,
-                        candidate.zoneId,
-                    )
+                    repository.hasDoseDecision(candidate)
                 },
             )
 
@@ -175,6 +171,7 @@ class PersistedDecisionRescheduleTest {
         .addMigrations(
             MedicationDatabase.MIGRATION_1_2,
             MedicationDatabase.MIGRATION_2_3,
+            MedicationDatabase.MIGRATION_3_4,
         )
         .build()
 }

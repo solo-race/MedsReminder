@@ -4,23 +4,15 @@ import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.ScheduledDose
 import java.time.Instant
 
-internal fun ScheduledDose.matchesOccurrence(occurrence: DoseOccurrence): Boolean {
-    if (medicationId != occurrence.medicationId || doseTimeId != occurrence.doseTimeId || zoneId != occurrence.zoneId) {
-        return false
-    }
-    val localDate = occurrence.scheduledFor.atZone(zoneId).toLocalDate()
-    if (localDate.dayOfWeek !in weekdays) return false
-    return localDate.atTime(time).atZone(zoneId).toInstant() == occurrence.scheduledFor
-}
-
 internal suspend fun deliverReminderIfUndecided(
     dose: ScheduledDose,
     occurrence: DoseOccurrence,
     isDecided: suspend () -> Boolean,
     showReminder: () -> Unit,
     cancelVisibleReminder: () -> Unit,
+    persistedPending: Boolean = false,
 ): Boolean {
-    if (!dose.matchesOccurrence(occurrence)) return false
+    if (!dose.matchesOccurrence(occurrence, persistedPending)) return false
     if (isDecided()) {
         cancelVisibleReminder()
         return false
@@ -45,14 +37,16 @@ internal suspend fun handleFiredOccurrence(
     showReminder: (ScheduledDose) -> Unit,
     cancelVisibleReminder: () -> Unit,
     scheduleFollowing: suspend (ScheduledDose, Instant) -> Unit,
+    persistedPending: Boolean = false,
 ) {
-    val dose = activeDoses.firstOrNull { it.matchesOccurrence(occurrence) } ?: return
+    val dose = activeDoses.firstOrNull { it.matchesOccurrence(occurrence, persistedPending) } ?: return
     deliverReminderIfUndecided(
         dose = dose,
         occurrence = occurrence,
         isDecided = isDecided,
         showReminder = { showReminder(dose) },
         cancelVisibleReminder = cancelVisibleReminder,
+        persistedPending = persistedPending,
     )
     scheduleFollowing(dose, occurrence.scheduledFor)
 }
