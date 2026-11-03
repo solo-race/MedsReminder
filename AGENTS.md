@@ -20,7 +20,7 @@ Use these repository documents as the default context before implementation or r
 
 For review work, create a new file under `docs/review/` using the review time in Singapore time (`Asia/Singapore`) in both filename and H1 title, then update `docs/review/README.md` so its `Latest review` pointer references that new document in the same change.
 
-## Tooling (verified on this workstation)
+## Tooling (historical Windows workstation)
 
 Android Studio `D:\AndroidStudio` (bundled JDK `D:\AndroidStudio\jbr`), Android SDK `%LOCALAPPDATA%\Android\Sdk` (Platform 37.0), Gradle `9.5.0`, AGP `9.3.0`, Kotlin `2.3.10`, KSP `2.3.11`.
 
@@ -36,11 +36,14 @@ Each feature has its own branch; keep branches focused on their named behavior a
 | `codex/feature-per-slot-dosage` | `40dac11` | Not started. |
 | `codex/feature-notification-guidance` | `40afac8` | Merged into master (`40afac8`, v0.018). |
 | `codex/feature-repost-missed-reminders` | `4dc52ee` | v0.019: Settings-gated self-heal re-posting; suite + device verified. |
-|`codex/feature-medication-detail-dose-actions`|`0caed66`|Active; Phases 1–6 Review Gates passed. Device smoke 2026-09-13 (`docs/review/2026-09-13-2230-sgt-device-smoke-verification.md`) → CHANGES REQUIRED: a reminder opened while the app is already running lost its explicit occurrence and did not navigate. Correction: `5e28a09` (ViewModel-bound occurrence + `onNewIntent` ingress) and `0caed66` (`launchMode="singleTop"`, without which the warm intent never reaches the app on PLB110/ColorOS); automated gate green (88 tests, lint 0 errors) and device-verified 2026-09-14 for foreground, background, real-notification-tap, rotation, repeated delivery, and cold delivery (`docs/review/2026-09-14-0015-sgt-device-smoke-reminder-entry.md`). Do not merge, modify `master`, create/merge PRs, or close the feature without explicit authorization.|
+| `codex/feature-medication-detail-dose-actions` | `2e05c90` (historical source) | Implementation through Phase 6 and reminder-entry/startup corrections are included in master via `7de78b4` / `701ffec`. Later autostart/manual-guide, Home-opened Detail pending selection, keyed state and DST corrections (`2cbdad2`) are included in master `de2f6b6`; see the canonical latest review. Historical automated/device results apply only to their recorded scope; the latest correction's device acceptance remains pending. This records merged ancestry, not source-branch deletion or new device acceptance. |
+| `codex/feature-interval-reminders-dose-summary` | `2b6822e` (implementation baseline) | Master `de2f6b6` integrated with history preserved. Plan revised for that baseline; independent plan review required before P1 / A implementation. No feature implementation yet. |
 
 ## Verification
 
-Canonical command-line build for this workstation. Managed shells may not expose `JAVA_HOME`/`GRADLE_USER_HOME`; with both empty, the wrapper can mis-create its lock under `C:\.gradle`, so set them explicitly. The temporary Gradle distribution (`...\Temp\CodexAndroidBuild\...`) no longer exists — invoke the wrapper through Java directly:
+For the interval-reminder feature, the user has directed the main assistant to pull the relevant commit into its own VM for subsequent builds and automated validation. Do not repeatedly attempt Android builds in the Codex cloud environment. VM JDK/SDK readiness and results must be verified there; old reports, including the 135-test correction report, do not establish current feature verification. See the feature plan's validation section.
+
+The following command is a historical Windows workstation recipe, not the current VM's setup. Managed shells on that workstation may not expose `JAVA_HOME`/`GRADLE_USER_HOME`; with both empty, the wrapper can mis-create its lock under `C:\.gradle`, so set them explicitly. The temporary Gradle distribution (`...\Temp\CodexAndroidBuild\...`) no longer exists — invoke the wrapper through Java directly:
 
 ```bash
 export JAVA_HOME='D:/AndroidStudio/jbr'
@@ -50,7 +53,7 @@ java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain 
 
 (PowerShell equivalent: `$env:JAVA_HOME = 'D:\AndroidStudio\jbr'; $env:GRADLE_USER_HOME = 'C:\Users\tiany\.gradle'` then the same `java -cp ...` line.)
 
-`--offline` fits the cached-dependency state; omit only when resolving a new dependency, then re-add it for later runs. Using the local Android/Gradle caches is user-approved; do not re-ask for normal verification runs.
+`--offline` matched that workstation's cached dependencies; it is not a claim about the assistant VM's caches. Using the local Android/Gradle caches is user-approved; do not re-ask for normal verification runs in the designated environment.
 
 Known shell/tooling pitfalls (MSYS path mangling with adb, signature-mismatch installs, stale daemons, cache cleanup rules): `docs/operations.md`. Read it before running Gradle or adb in a new session.
 
@@ -68,4 +71,4 @@ Verification evidence, device setup, tooling quirks, and backlog: `docs/memory.m
 
 ## Current requested feature plan
 
-The interval-reminder and dose-summary feature is planned on `codex/feature-interval-reminders-dose-summary`, created from `codex/feature-medication-detail-dose-actions`. Its implementation entry point is [`docs/feature-plans/interval-reminders-dose-summary/README.md`](docs/feature-plans/interval-reminders-dose-summary/README.md). This is a new, planning-only feature branch; the previous feature is not closed or merged. Follow the plan's current phase and existing independent review rules. Do not modify `master`, create PRs, merge, tag, or release without the user's explicit instruction.
+The interval-reminder and dose-summary feature is planned on `codex/feature-interval-reminders-dose-summary`. Its implementation baseline is merge `2b6822e`, which combines the original plan with master `de2f6b6` and correction `2cbdad2`. Its entry point is [`docs/feature-plans/interval-reminders-dose-summary/README.md`](docs/feature-plans/interval-reminders-dose-summary/README.md). The earlier medication-detail implementation is already in master; this feature remains planning-only, pending independent plan review before P1 / A. Preserve existing Home-opened Detail pending selection, explicit notification/keyed-state/DST fixes and autostart manual guidance. Follow the plan's current phase and independent review rules. Do not modify `master`, create PRs, merge, tag, or release without the user's explicit instruction.

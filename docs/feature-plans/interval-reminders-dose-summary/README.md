@@ -1,10 +1,10 @@
 # 周期间隔提醒与剂量汇总实施计划
 
-版本：1.0；编制日期：2026-11-03（北京时间）。
-状态：计划已编制；功能尚未实施。首个实施阶段：P1 / A。
+版本：1.1；编制及基线修订日期：2026-11-03（北京时间）。
+状态：计划已按合并基线修订，待独立计划审阅；功能尚未实施。首个实施阶段仍为 P1 / A。
 仓库：`solo-race/MedsReminder`。
 工作分支：`codex/feature-interval-reminders-dose-summary`。
-创建来源：`codex/feature-medication-detail-dose-actions`，基线提交 `2e05c90084724fc5a275e116dd14f2afbf57e44f`。已先创建分支，再编制计划。
+当前实施基线：合并提交 `2b6822ebb098adabba045415b2d460543e25d14b`，已整合 `master` 的 `de2f6b674c64565f95883e704341c6c599049214`，包含自启动及待服选择修复 `2cbdad2`。分支最初从 `codex/feature-medication-detail-dose-actions` 的 `2e05c90` 创建，原计划提交为 `9c41dda`；这些仅为创建历史，不再作为当前实施基线。后续不重建或覆盖已有历史。
 
 ## 1. 目标与范围
 
@@ -29,13 +29,19 @@
 | `DoseEventEntity` | 已有唯一索引 `(doseTimeId, scheduledForEpochMillis)` | 直接复用，不另建去重框架 |
 | `ReminderNotifications.kt` | 通知及部分 PendingIntent 只按 slot 标识 | 改为每次 occurrence 标识，防止新一轮覆盖旧提醒或操作删错通知 |
 | `ReminderDoseDecisionEffects.kt` | 处理后以旧 scheduledFor 安排后续 | 处理积压提醒时应从当前时刻重建未来 alarm，避免倒排过去时间 |
-| `MedicationApp.kt`、`MedicationViewModel.kt`、`MedicationDetailScreen.kt` | 首页及普通详情主要选择未来 occurrence | 优先显示未处理提醒，倒计时不驱动重新选择下一次 |
+| `ui/HomeDetailOccurrence.kt`、`MedicationViewModel.kt`、`MedicationDetailScreen.kt` | 普通详情已优先选择计划时区当天最近的未决策到期项，再回退到最早未决策未来项；不合成前日积压 | 在此基础上增加持久 pending 最早优先；无 pending 时固定模式保留现有当天待服回退，不重做已有修复 |
+| `MedicationApp.kt` 的 `HomeScreen / MedicationCard` | 首页排序及卡片仍按未来时刻展示，与普通详情的待服选择不同 | 统一卡片与详情当前 occurrence 的选择及倒计时，未来下一次可另列 |
+| `MainActivity.kt`、`MedicationViewModel.kt`、`MedicationDetailScreen.kt` | 已有 `onNewIntent` / `singleTop`、显式通知 occurrence 优先、keyed 加载结果与状态隔离，以及统一 `atZone` 的 DST 校验 | 扩展 interval/pending 时保留这些修复及测试，不另建导航或状态框架 |
+| `AutostartSettings.kt`、设置页手动引导 | OEM 页面打开失败已转为可恢复、可滚动的手动引导；通用设置为单独标明的动作，不以跳转结果判断授权 | 保留现有引导，不恢复 App Details 自动回退，不另建厂商权限框架 |
+| `ReminderNotifications.kt` 的显示内容 | `VISIBILITY_PUBLIC`，正文和展开内容显示 dosage；没有 `publicVersion` | 保持当前 alias/通用标题和剂量显示行为，不声称已有锁屏脱敏，不在本 feature 新增脱敏功能 |
 | `DoseEventDao.observeAllWithMedication()` | INNER JOIN 读取当前药物 dosageText，事件没有剂量快照 | 新事件保存当次剂量；不能用当前剂量乘历史次数 |
 | `RoomMedicationRepository` | 决策时清理30天前事件；删除药物同时删其事件 | 汇总明确限制为保留记录，不宣称全历史累计；本次不改变删除/保留策略 |
 | `HistoryScreen` | 空历史单独分支 | 汇总入口置于空/非空分支之前，零记录也可访问 |
-| 最新 review（2026-09-21 01:59 SGT） | ColorOS 禁止自启动时可阻止冷进程接收闹钟；允许自启动的对照通过 | 保留系统限制说明，不为此新建后台常驻或重试框架 |
+| 最新 review（2026-10-24 23:33 SGT） | 重建自启动引导、当天待服选择、keyed 状态和 DST 修复；报告当时 135 项测试通过，实际 Compose/OEM/设备验收仍待执行 | 以当前源码确认已合并修复；历史测试与 APK 仅证明当时范围，不当作当前 feature 的验证 |
+| 历史设备 review（2026-09-21 01:59 SGT） | ColorOS 禁止自启动时可阻止冷进程接收闹钟；允许自启动的对照通过 | 保留系统限制说明，不为此新建后台常驻或重试框架 |
+| `app/build.gradle.kts` | 当前 `versionName = "1.0.0-beta.4"`、`versionCode = 4` | P4 才按最终基线递增版本；计划修订不改版本或源码 |
 
-最新 review 指向的是更早提交和当时工作树；本计划代码判断以本次分支基线为准，不把旧 review 当作新功能通过证明。
+最新 review 的权威入口仍为 `docs/review/README.md`。该报告记录的是当时修复范围；本次以合并基线源码复核，不把历史 135 项测试、缓存输出或旧 APK 当作当前 feature 的新验证。本轮仅做文档修订和一致性检查，不运行 Android 构建。
 
 ## 3. 明确的产品行为
 
@@ -83,7 +89,9 @@ UI 用生命周期感知的轻量定时刷新显示时间，页面不可见停�
 
 复用 `ReminderDismissReceiver` 静默重贴，复用 Application/ViewModel/SystemEventReceiver 的恢复入口读取 pending；pending 不在跨日或30天决策清理中删除。保留 `MissedReminderReposter` 的统一入口：恢复已保存 pending 不受“补发错过提醒”开关影响；对从未进入提醒流程的历史 occurrence，仍由该开关控制补发策略，本版只补最近一次合规逾期 occurrence，不扫描整段历史生成大量通知。补发后同样保存 pending。
 
-首页与普通详情使用同一选择规则：明确通知传入的 occurrence 优先；否则选该药最早未处理 pending；没有 pending 才选未来最近未决策 occurrence。未来下一次可另行显示，但主操作始终作用于当前绑定的 occurrence。跨到点、旋转、重新进入、时区显示刷新都不能悄悄改变当前操作对象。处理成功后重新选择剩余 pending 或未来项。
+首页与普通详情使用同一选择规则：明确通知传入的 occurrence 优先；否则选该药最早未处理的持久 pending。没有持久 pending 时，固定时刻模式复用 `homeDetailOccurrence`：先选计划时区当天最近的未决策到期项，再回退到未来最近未决策项，不合成前日积压；间隔模式回退到未来最近未决策项，未登记逾期项的补发仍按上述 `MissedReminderReposter` 规则处理。持久 pending 的“最早优先”与固定模式无 pending 时的“当天最近到期优先”是两个明确分支，不能互相替代。未来下一次可另行显示，但主操作始终作用于当前绑定的 occurrence。跨到点、旋转、重新进入、时区显示刷新都不能悄悄改变当前操作对象。处理成功后按上述顺序重新选择。
+
+直接扩展现有 selector、显式通知入口和 keyed 状态，保留已合并的 DST 规则及自启动手动引导；不为已有状态修复重复建立导航、状态或权限框架。
 
 仅修改名称/剂量/备注/照片时，不再使用现有“保存前取消所有通知”逻辑清掉 pending；数据库保存成功后才按变更类型更新调度与通知。保存失败不得清掉旧提醒。
 
@@ -153,8 +161,8 @@ UI 用生命周期感知的轻量定时刷新显示时间，页面不可见停�
 2. Receiver 按 phase 分支，PRE仅推进下一PRE；DUE更新当前通知并仅推进下一DUE。重复和过时投递用现有合法性/决策检查抑制；当前已到DUE时迟到PRE不能降级状态。
 3. 实现 pending 保存/恢复和完整通知身份。重建新alarm时取消旧 `REMIND.<slot>` alarm，保留旧action解析中的occurrence extras；旧alarm无phase仅解释为DUE。升级时不得盲目清除旧slot-id通知：继续显示并接受旧action；收到其content/action传入的完整occurrence后才可登记pending转新tag或完成决策，随后清理对应legacy通知。Android不能直接读取PendingIntent内部extras，不能假定可从旧通知准确恢复原服药时间。升级前未落库的旧通知无法承诺跨重启无损恢复；新版本新建pending全部按本计划持久化。
 4. effects 只取消选中 occurrence，future rebuild 从 now 计算；处理旧通知不撤销别次通知。
-5. 在现有编辑页加入模式/anchor/interval、结构化剂量控件；首页与详情统一 occurrence 选择和前台倒计时；保留 onNewIntent/singleTop 修复。
-6. 设置页加入响铃开关、两种 channel 发送策略；新增中英文资源，通知锁屏脱敏/publicVersion 沿用原逻辑。
+5. 在现有编辑页加入模式/anchor/interval、结构化剂量控件；首页与详情按第3.4节统一 occurrence 选择和前台倒计时；保留当天待服回退、显式通知、keyed 状态、DST 及 onNewIntent/singleTop 修复，不另建状态框架。
+6. 设置页加入响铃开关、两种 channel 发送策略；新增中英文资源，保留自启动手动引导。通知沿用现有 alias/通用标题、公开可见及剂量显示行为；基线没有 publicVersion，不宣称锁屏脱敏，也不新增该功能。
 7. 保存路径按计划是否变化处理取消与重建，不能在纯剂量编辑时消失未处理通知。
 
 完成条件：08:00对应07:55预提醒，08:00原通知到点更新；开应用仍操作08:00；同日20:00另一次独立；重复刷新不响；关闭响铃仍显示通知；Taken/Skipped只清理本次；恢复原 pending 不依赖补发开关。
@@ -177,7 +185,7 @@ UI 用生命周期感知的轻量定时刷新显示时间，页面不可见停�
 
 依赖：P3独立 review 通过。
 
-运行第6节已有自动化及一次聚焦实机检查；仅修本 feature 的实际阻塞问题，修复后在独立 review 轮核实。更新 `docs/memory.md`、本计划状态和发布说明，增加 `app/build.gradle.kts` 的 versionCode（大于已有值）并按现有版本惯例定 versionName，不伪称现有v1.0.0-beta.1为新版本。
+运行第6节已有自动化及一次聚焦实机检查；仅修本 feature 的实际阻塞问题，修复后在独立 review 轮核实。更新 `docs/memory.md`、本计划状态和发布说明，增加 `app/build.gradle.kts` 的 versionCode（当前为4，新值须大于实施时基线已有值）并按现有版本惯例定 versionName，不将现有 `1.0.0-beta.4` 当作本 feature 的新版本。
 
 交付可构建源代码、通过/未通过/未执行结果、APK路径（实际构建成功时）及签名方式。沿用现有 CI 和 release workflow，不创建新发布流水线。发布签名材料不可用时明确“debug验收包/正式签名包待本地构建”，不得将 debug APK 标作正式 release。
 
@@ -193,19 +201,19 @@ UI 用生命周期感知的轻量定时刷新显示时间，页面不可见停�
 | 间隔递推 | 08:00+12h同日20:00再次日08:00；10h跨日、不重置到每日固定时刻；换区不改epoch | NextDoseCalculatorTest |
 | 决策与数量 | 同日两次各可Taken；同一次双击/通知+详情只一行；固定模式原测试通过 | RoomMedicationRepositoryDoseDecisionTest、DoseDecisionUseCaseTest |
 | PRE/DUE | PRE不替换DUE；1分钟间隔下一PRE在本次DUE前仍可触发；进入5分钟窗口重建可提醒；提前处理后两阶段均不响；迟到PRE不倒退DUE | ReminderSchedulerTest、ReminderDeliveryHandlingTest、DecisionAwareSchedulingTest |
-| 持久身份 | 未处理旧剂量与下一次同时存在；处理旧剂量只清自身；scheduleAll/relaunch恢复pending；点击通知保留原occurrence | PersistedDecisionRescheduleTest、MissedReminderReposterIntegrationTest、现有navigation/entry测试 |
+| 持久身份与选择回退 | 未处理旧剂量与下一次同时存在；处理旧剂量只清自身；scheduleAll/relaunch恢复pending；点击通知保留原occurrence；多个持久pending选最早；无pending的固定模式仍选当天最近未决策到期项再未来，保留keyed状态和DST回归 | PersistedDecisionRescheduleTest、MissedReminderReposterIntegrationTest、HomeDetailOccurrenceTest / IntegrationTest、MedicationDetailLogicTest、现有navigation/entry测试 |
 | 倒计时 | 进入5分钟窗口显示倒计时；到点显示到期；主页进入仍绑定未处理剂量；屏幕外无每秒任务 | MedicationDetailLogicTest + 一次UI检查 |
 | 声音 | 默认开、持久化关闭、PRE/DUE各一次、重贴静音；切换不删除pending | AppPreferences/notification针对性测试 + 实机 |
 | 汇总 | 小数求和；Skipped排除；不同药/单位分开；未知量提示；剂量编辑不改旧快照；按actionedAt窗口 | 在repository/domain测试目录添加一组汇总用例 |
 | 编辑影响 | 普通元数据/剂量编辑保留pending；改序列取消旧通知与未来alarm且新序列生效 | DoseTimeReconciliationTest + reminder集成测试 |
 
-当前已有完整回归命令（仓库根目录）：
+按用户指定，后续构建与自动化验证由主助手在其自己的 VM 拉取对应 feature 提交后执行，不在 Codex 云环境反复尝试 Android 构建。该 VM 的 JDK/SDK、依赖可用性与构建结果尚待实际核实。沿用仓库完整回归任务（在该 VM 的仓库根目录，按实际环境配置 JDK/SDK 后执行）：
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
 ```
 
-沿用已配置环境的JDK/SDK；Windows环境按 `docs/operations.md` 中wrapper入口执行同样任务。未安装依赖或无SDK时报告环境原因，不能把未运行写作通过。P1/P2/P3各运行受影响测试及编译，P4运行一次完整现有回归；仅在新变更或失败时重跑相关项，不为文档变动反复全量测试。
+根 AGENTS.md 和 `docs/operations.md` 中的 Windows 路径及 wrapper 命令仅为历史工作站记录，不作为上述 VM 已可构建的证据。未安装依赖、无 SDK 或实际命令失败时报告具体原因；未运行、缓存复用和实际执行须分别说明，历史 135 项测试不替代当前验证。P1/P2/P3各在该 VM 运行受影响测试及编译，P4运行一次完整现有回归；仅在新变更或失败时重跑相关项，不为本轮文档变动运行构建或反复全量测试。
 
 实机最小流程：在保留原数据的前提下建一个独立测试药，首次时间设置为数分钟后，使5分钟窗口能完整观察；验证PRE、DUE、声开关、点击进入仍绑定本次、Taken/Skipped后消失、下次不覆盖旧次；重开应用看pending恢复；检查记录页汇总和一个既有固定时刻提醒。可用短间隔测试药触发同日多次，不等待真实12小时；12小时数学结果由单测验证。新tag与尚未操作的legacy通知可能短暂并存，不能为消除过渡期重复而猜测旧occurrence并删通知；首次从旧通知进入或操作时完成精确收敛。实机声音、锁屏和ColorOS后台结果必须实测或标未执行，不能用源码断言替代。测试结束仅删除测试药，不清库、不卸载。
 
@@ -215,7 +223,10 @@ UI 用生命周期感知的轻量定时刷新显示时间，页面不可见停�
 
 每次读取：根 AGENTS.md → docs/review/README.md 的 Latest review → docs/architecture/README.md → 本计划和当前阶段 → 当前代码/diff。只在本 feature branch 工作，不改 master、不force-push、不自行PR/merge/tag/release。
 
+本计划涉及 Room v3→v4 迁移、持久 pending 与旧 alarm/通知兼容，开始 P1 前须对修订后的计划进行独立审阅，核对基线事实、迁移及兼容性约束；通过后才进入 P1 实施。本轮落实 planner 修订不代表该独立计划审阅已通过，现有 P1–P4 及阶段独立审阅规则保持不变。
+
 沿用项目两项历史任务所规定的状态机，字母表示每个阶段的执行状态：
+
 - A：当前阶段未完成，只开发当前阶段；完成后停止。
 - B：阶段实现已完成但无对该实现有效的 review；下一轮只审阅，不同轮修复。
 - C：review有未解决的阻塞问题；下一轮只修该阶段，完成后停止并等待独立review。
@@ -231,7 +242,8 @@ review 使用新时间戳文件 `docs/review/YYYY-MM-DD-HHmm-sgt-<scope>.md`，�
 
 | 阶段 | 当前状态 | 下一动作 |
 | --- | --- | --- |
-| P1 数据与间隔 | A / 未开始 | 按第5节P1实施 |
+| 计划基线修订 | 已落实，待独立计划审阅 | 独立核对迁移与旧alarm/通知兼容性；通过后进入P1 |
+| P1 数据与间隔 | A / 未开始 | 等待独立计划审阅通过，再按第5节P1实施 |
 | P2 提醒与交互 | 未开始，依赖P1通过 | 等待P1有效review |
 | P3 汇总 | 未开始，依赖P2通过 | 等待P2有效review |
 | P4 验证与发布准备 | 未开始，依赖P3通过 | 集成验收与交付 |
@@ -239,11 +251,14 @@ review 使用新时间戳文件 `docs/review/YYYY-MM-DD-HHmm-sgt-<scope>.md`，�
 ## 9. 核对依据
 
 仓库事实取自本计划所列基线代码，以及：
-- `AGENTS.md`、`docs/review/README.md`、`docs/review/2026-09-21-0159-sgt-cold-process-alarm-verification.md`。
+
+- `AGENTS.md`、`docs/review/README.md`、最新 `docs/review/2026-10-24-2333-sgt-reconstructed-autostart-pending-dose.md`；2026-09-21 设备报告仅作历史系统限制依据。
 - `docs/architecture/README.md`、`docs/feature-plans/medication-detail-dose-actions/README.md`、`docs/operations.md`。
+- `ui/HomeDetailOccurrence.kt`、`MedicationDetailScreen.kt`、`MedicationViewModel.kt`、`MedicationApp.kt`、`AutostartSettings.kt`、`MainActivity.kt`、`AndroidManifest.xml` 和 `reminders/ReminderNotifications.kt`。
 - `.github/workflows/ci.yml`、`.github/workflows/release.yml`、`app/build.gradle.kts`。
 
-Android官方接口依据（2026-11-03查询）：
+Android官方接口依据（原计划记载于2026-11-03查询，本轮仅保留引用，未重新联网核验）：
+
 - [通知channel及用户声音设置](https://developer.android.com/develop/ui/views/notifications/channels)：已创建channel的声音行为不能由应用随意重设。
 - [Notification.Builder](https://developer.android.com/reference/android/app/Notification.Builder)：chronometer与倒计时接口。
 - [Android 14通知行为变化](https://developer.android.com/about/versions/14/behavior-changes-all)：ongoing通知不等于所有系统情形下不可清除。
