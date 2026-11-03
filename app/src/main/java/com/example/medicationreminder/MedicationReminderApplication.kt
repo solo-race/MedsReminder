@@ -19,6 +19,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class MedicationReminderApplication : Application() {
     lateinit var container: AppContainer
@@ -35,7 +38,7 @@ class MedicationReminderApplication : Application() {
         // force-stop recovery and devices that remove pending alarms without broadcasting a
         // recoverable system event.
         applicationScope.launch {
-            runCatching { container.scheduler.scheduleAll() }
+            runCatching { container.restoreReminders() }
                 .onSuccess { result ->
                     if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                         Log.i(TAG, "Reminder alarm restore is waiting for exact-alarm access")
@@ -51,6 +54,7 @@ class MedicationReminderApplication : Application() {
 }
 
 class AppContainer(context: Context) {
+    private val recoveryMutex = Mutex()
     private val database = Room.databaseBuilder(
         context,
         MedicationDatabase::class.java,
@@ -64,8 +68,18 @@ class AppContainer(context: Context) {
     val imageStore = MedicationImageStore(context)
     val preferences = AppPreferences(context)
     val notifications = ReminderNotifications(context)
-    val scheduler = ReminderScheduler(context, repository)
-    val missedReminderReposter = MissedReminderReposter(repository, notifications)
+    val missedReminderReposter = MissedReminderReposter(repository, notifications, preferences)
+    val scheduler = ReminderScheduler(context, repository) { occurrence ->
+        missedReminderReposter.deliverOccurrence(occurrence,
+            com.example.medicationreminder.domain.model.ReminderStage.PRE, alert = true)
+    }
+
+    suspend fun restoreReminders(): ScheduleResult = recoveryMutex.withLock {
+        missedReminderReposter.restorePending()
+        val result = scheduler.scheduleAll()
+        if (preferences.repostMissedReminders.first()) missedReminderReposter.repostUndecidedOverdue()
+        result
+    }
     val doseDecisionUseCase = DoseDecisionUseCase(
         repository = roomRepository,
         effects = ReminderDoseDecisionEffects(repository, scheduler, notifications),

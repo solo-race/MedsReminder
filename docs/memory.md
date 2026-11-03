@@ -117,3 +117,33 @@ Observed self-checks in the managed Linux cloud environment:
 - Debug artifact: `app/build/outputs/apk/debug/app-debug.apk`, 20,510,839 bytes, SHA-256 `ce64333d57b2a892f90831bd0b4ce399f2e67d3a259b9d990b3011af601c474d`. Debug signed, not installed or released. App version stays `1.0.0-beta.4` / code 4 until P4.
 
 Room/Robolectric runtime migration and repository integration cases remain unverified; the full suite is not green. Lint and physical-device tests were not run. Main-assistant VM or user local validation must cover those remaining checks. The supervisor's non-blocking plan-review reminder (database failure feedback, preserving notifications on failure) belongs to P2. Independent P1 review is still needed before P2; blocked runtime checks remain explicitly deferred under the user's later instruction to continue feasible static work and review. No master update, force push, PR, tag, or release is authorized by this checkpoint.
+
+## 2026-11-03 — Interval reminders P2 implementation checkpoint
+
+Input: feature commit `2f75eb6`; supervisor relayed independent P1 review PASS, no blocking defect. P2 moves A → B for independent phase review. P3/P4 remain unstarted. No test result below changes the prior P1 report: its 9 Robolectric initialization failures have not been rerun or marked passed.
+
+Implemented separate PRE/DUE slot alarms, five-minute window initialization, transaction-backed pending publication, silent recovery independent of missed-repost opt-in, occurrence-specific notification/content/action/delete identities and cleanup, guarded legacy conversion, global sound preference/silent channel, foreground lifecycle countdown, interval/structured-dose editors and consistent current-occurrence selection. Metadata saves retain reminders; explicit plan changes/disable/delete clear old reminders after a successful database commit. Database decision failure keeps the notification and reports through Detail's snackbar or the notification action's Toast. PRE restoration renders the current clock state without consuming the future DUE alert. Real sound and lifecycle behavior still require runtime/device validation.
+
+The P1 review's existing fixed-mode travel defect is minimally corrected: query exact `(doseTimeId, scheduledFor)` first, then logical-day. The added Room test confirms the intended case of Honolulu 2026-11-03 08:00 / Kiritimati 2026-11-04 08:00 sharing the same instant, but its method has not run. A prior pending-travel fixture now changes the schedule zone directly to simulate external travel rather than an explicit editor change, which P2 intentionally treats as ending the old fixed schedule.
+
+Actual self-check commands used the same JDK17 / SDK / Gradle cache environment and wrapper entry described in the P1 checkpoint:
+
+```text
+testDebugUnitTest
+  --tests com.example.medicationreminder.reminders.ReminderPhasePlanningTest
+  --tests com.example.medicationreminder.ui.ReminderPresentationTest
+  --tests com.example.medicationreminder.domain.decision.DoseDecisionUseCaseTest
+  --tests com.example.medicationreminder.domain.scheduling.NextDoseCalculatorTest
+  --tests com.example.medicationreminder.ui.HomeDetailOccurrenceTest
+  --tests com.example.medicationreminder.ui.MedicationDetailLogicTest
+  --tests com.example.medicationreminder.data.repository.DoseTimeReconciliationTest
+  --tests com.example.medicationreminder.reminders.DecisionAwareSchedulingTest
+  --tests com.example.medicationreminder.reminders.ReminderDeliveryHandlingTest
+assembleDebug --no-daemon --offline --console=plain
+```
+
+Final result: BUILD SUCCESSFUL in 39s; 50 actionable tasks, 20 executed / 30 up-to-date. Main/KSP and test source compilation plus APK packaging executed. 70 tests / 9 classes / 0 failures / 0 errors / 0 skipped. Kotlin's daemon marker path under read-only `/home/agent/.local/share/kotlin/daemon` still failed; Gradle's built-in compiler fallback succeeded. Log: `/tmp/meds-p2-final-validation.log`. XML/key/reference checks passed for 139 EN/ZH strings; `git diff --check` passed. This is implementer self-check evidence, not independent verification.
+
+Debug APK: `app/build/outputs/apk/debug/app-debug.apk`, 20,832,030 bytes; SHA-256 `cfc9513751ec493acf80dd459a0fe1e9c7846f00e1b92e31c0d4f1360de3ac36`. Debug signed, not installed or released; version remains beta.4 / code 4 until P4.
+
+Deferred checks: full Robolectric/Room suite (including the same-instant travel regression), `PendingReminderDeliveryTest` notification/DataStore/legacy cases, actual Compose interactions and lifecycle timing, lint, physical PRE/DUE sounds/silent-channel behavior, lockscreen and OEM recovery. These tests compiled but were not run; their outcomes remain unknown. No repeat of known-blocked Robolectric initialization was attempted. User-approved static implementation/review may continue with these gaps explicitly retained. No master change, force push, PR, tag, release or P3 implementation was performed.

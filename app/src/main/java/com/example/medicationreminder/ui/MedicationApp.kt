@@ -8,6 +8,9 @@ package com.example.medicationreminder.ui
 import android.Manifest
 import android.app.AlarmManager
 import android.app.TimePickerDialog
+import android.app.DatePickerDialog
+import java.time.LocalDate
+import java.time.LocalDateTime
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
@@ -159,6 +162,7 @@ private fun MedicationAppContent(
     val navController = rememberNavController()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
+    val reminderSoundEnabled by viewModel.reminderSoundEnabled.collectAsStateWithLifecycle()
     val reminderEntry by viewModel.reminderEntry.collectAsStateWithLifecycle()
     val reminderOccurrence by viewModel.reminderOccurrence.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -184,6 +188,7 @@ private fun MedicationAppContent(
     var showPermissionDialog by remember { mutableStateOf(false) }
     var showExactAlarmDialog by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
+        viewModel.onAppResumed()
         val wasExactAlarmAllowed = exactAlarmAllowed
         exactAlarmAllowed = canScheduleExactAlarms(context)
         if (exactAlarmPermissionRestored(wasExactAlarmAllowed, exactAlarmAllowed)) {
@@ -266,6 +271,7 @@ private fun MedicationAppContent(
             ) { padding ->
                 HomeScreen(
                     plans = plans,
+                    viewModel = viewModel,
                     modifier = Modifier.padding(padding),
                     onOpenDetail = { medicationId ->
                         viewModel.clearReminderOccurrence()
@@ -290,6 +296,8 @@ private fun MedicationAppContent(
                 SettingsScreen(
                     modifier = Modifier.padding(padding),
                     language = language,
+                    reminderSoundEnabled = reminderSoundEnabled,
+                    onReminderSoundChanged = viewModel::setReminderSoundEnabled,
                     onLanguageSelected = viewModel::setLanguage,
                     repostMissedReminders = repostMissedReminders,
                     onRepostMissedRemindersChanged = viewModel::setRepostMissedReminders,
@@ -304,6 +312,7 @@ private fun MedicationAppContent(
             MedicationDetailScreen(
                 plan = plans.firstOrNull { it.medication.id == id },
                 explicitOccurrence = reminderOccurrence?.takeIf { it.medicationId == id },
+                snackbarHost = { SnackbarHost(snackbarHost) },
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
                 onEdit = { navController.navigate(Routes.edit(it)) },
@@ -314,6 +323,7 @@ private fun MedicationAppContent(
                 plan = null,
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                snackbarHost = { SnackbarHost(snackbarHost) },
             )
         }
         composable(
@@ -325,6 +335,7 @@ private fun MedicationAppContent(
                 plan = plans.firstOrNull { it.medication.id == id },
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
+                snackbarHost = { SnackbarHost(snackbarHost) },
             )
         }
     }
@@ -376,17 +387,17 @@ private fun MainScaffold(
 }
 
 @Composable
-private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifier, onOpenDetail: (Long) -> Unit) {
-    val now by minuteTicker()
-    val ordered = remember(plans, now) {
-        plans.sortedBy { plan ->
-            plan.times.mapNotNull { time ->
-                if (plan.schedule.scheduleMode == ScheduleMode.FIXED_TIMES) {
-                    NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
-                } else plan.scheduledDose(time.id)?.let { NextDoseCalculator.nextOccurrence(it, now) }
-            }.minOrNull()
-        }
+private fun HomeScreen(plans: List<MedicationPlan>, viewModel: MedicationViewModel, modifier: Modifier = Modifier, onOpenDetail: (Long) -> Unit) {
+    val now by occurrenceClock()
+    val pending by viewModel.pending.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
+    var resumed by remember { mutableStateOf(0) }
+    LifecycleResumeEffect(Unit) { resumed++; onPauseOrDispose { } }
+    val selection by produceState<Map<Long, com.example.medicationreminder.domain.model.DoseOccurrence?>>(
+        emptyMap(), plans, pending, history, resumed) {
+        value = plans.associate { it.medication.id to viewModel.nextActionableOccurrence(it.medication.id, Instant.now()) }
     }
+    val ordered = plans.sortedBy { selection[it.medication.id]?.scheduledFor }
     if (plans.isEmpty()) {
         Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -406,20 +417,16 @@ private fun HomeScreen(plans: List<MedicationPlan>, modifier: Modifier = Modifie
                 Text(stringResource(R.string.active_medication_schedule), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             items(ordered, key = { it.medication.id }) { plan ->
-                MedicationCard(plan, now, onOpenDetail = onOpenDetail)
+                MedicationCard(plan, now, selection[plan.medication.id], onOpenDetail = onOpenDetail)
             }
         }
     }
 }
 
 @Composable
-private fun MedicationCard(plan: MedicationPlan, now: Instant, onOpenDetail: (Long) -> Unit) {
+private fun MedicationCard(plan: MedicationPlan, now: Instant, occurrence: com.example.medicationreminder.domain.model.DoseOccurrence?, onOpenDetail: (Long) -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
-    val next = plan.times.mapNotNull { time ->
-        if (plan.schedule.scheduleMode == ScheduleMode.FIXED_TIMES) {
-            NextDoseCalculator.nextOccurrence(time.time, plan.schedule.weekdays, plan.schedule.zoneId(), now)
-        } else plan.scheduledDose(time.id)?.let { NextDoseCalculator.nextOccurrence(it, now) }
-    }.minOrNull()
+    val next = occurrence?.scheduledFor
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onOpenDetail(plan.medication.id) },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -439,8 +446,9 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, onOpenDetail: (Lo
                     )
                 }
                 Spacer(Modifier.height(10.dp))
+                if (occurrence != null) Text(occurrenceCountdown(occurrence, now))
                 Text(
-                    next?.let { stringResource(R.string.next_dose, formatInstant(it, plan.schedule.zoneId(), locale)) }
+                    next?.let { stringResource(R.string.current_dose, formatInstant(it, occurrence.zoneId, locale)) }
                         ?: stringResource(R.string.no_upcoming_dose),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -489,6 +497,8 @@ private fun SettingsScreen(
     modifier: Modifier = Modifier,
     language: AppLanguage,
     onLanguageSelected: (AppLanguage) -> Unit,
+    reminderSoundEnabled: Boolean,
+    onReminderSoundChanged: (Boolean) -> Unit,
     repostMissedReminders: Boolean,
     onRepostMissedRemindersChanged: (Boolean) -> Unit,
 ) {
@@ -568,6 +578,11 @@ private fun SettingsScreen(
                 action = stringResource(R.string.open_notification_settings),
                 onAction = { openAppNotificationSettings(context) },
             )
+        }
+        item {
+            ToggleCard(title = stringResource(R.string.reminder_sound),
+                description = stringResource(R.string.reminder_sound_description),
+                checked = reminderSoundEnabled, onChanged = onReminderSoundChanged)
         }
         item {
             ToggleCard(
@@ -733,7 +748,8 @@ internal fun exactAlarmPermissionRestored(wasAllowed: Boolean, isAllowed: Boolea
     !wasAllowed && isAllowed
 
 @Composable
-private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationViewModel, onBack: () -> Unit) {
+private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationViewModel, onBack: () -> Unit,
+    snackbarHost: @Composable () -> Unit = {}) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val initialTimes = plan?.times?.map { it.time } ?: listOf(LocalTime.of(8, 0), LocalTime.of(14, 0), LocalTime.of(20, 0))
@@ -741,6 +757,17 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     var name by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.name.orEmpty()) }
     var alias by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.alias.orEmpty()) }
     var dosage by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.dosageText.orEmpty()) }
+    var mode by remember(plan?.medication?.id) { mutableStateOf(plan?.schedule?.scheduleMode ?: ScheduleMode.FIXED_TIMES) }
+    val initialAnchor = remember(plan?.medication?.id) { plan?.schedule?.anchorEpochMillis?.let {
+        Instant.ofEpochMilli(it).atZone(plan.schedule.zoneId()).toLocalDateTime()
+    } ?: LocalDateTime.now().plusMinutes(10).withSecond(0).withNano(0) }
+    var anchorDate by remember(plan?.medication?.id) { mutableStateOf(initialAnchor.toLocalDate()) }
+    var anchorTime by remember(plan?.medication?.id) { mutableStateOf(initialAnchor.toLocalTime()) }
+    var anchorEdited by remember(plan?.medication?.id) { mutableStateOf(false) }
+    var intervalHours by remember(plan?.medication?.id) { mutableStateOf(((plan?.schedule?.intervalMinutes ?: 720) / 60).toString()) }
+    var intervalMins by remember(plan?.medication?.id) { mutableStateOf(((plan?.schedule?.intervalMinutes ?: 720) % 60).toString()) }
+    var doseAmount by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.doseAmount.orEmpty()) }
+    var doseUnit by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.doseUnit.orEmpty()) }
     var note by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.note.orEmpty()) }
     var enabled by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.enabled ?: true) }
     var weekdays by remember(plan?.medication?.id) { mutableStateOf(plan?.schedule?.weekdays ?: DayOfWeek.entries.toSet()) }
@@ -767,6 +794,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     }
 
     Scaffold(
+        snackbarHost = snackbarHost,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -774,6 +802,21 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                 },
                 navigationIcon = { TextButton(onClick = onBack) { Text(stringResource(R.string.back)) } },
                 actions = { TextButton(onClick = {
+                    val interval = if (mode == ScheduleMode.INTERVAL) runCatching {
+                        val hours = intervalHours.toLong()
+                        val minutes = intervalMins.toLong()
+                        require(hours >= 0 && minutes in 0..59)
+                        Math.addExact(Math.multiplyExact(hours, 60), minutes).also { require(it > 0) }
+                    }.getOrNull() else null
+                    if (mode == ScheduleMode.INTERVAL && interval == null) {
+                        viewModel.invalidScheduleInput()
+                        return@TextButton
+                    }
+                    val anchorMillis = if (mode == ScheduleMode.INTERVAL) {
+                        if (!anchorEdited && plan?.schedule?.anchorEpochMillis != null) plan.schedule.anchorEpochMillis
+                        else anchorDate.atTime(anchorTime).atZone(if (zoneMode == TimeZoneMode.DEVICE)
+                            ZoneId.systemDefault() else ZoneId.of(manualZone)).toInstant().toEpochMilli()
+                    } else null
                     viewModel.saveMedication(
                         draft = MedicationDraft(
                             id = plan?.medication?.id,
@@ -787,11 +830,11 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                             times = times.toList(),
                             existingPhotoPath = plan?.medication?.photoPath,
                             alias = alias,
-                            scheduleMode = plan?.schedule?.scheduleMode ?: ScheduleMode.FIXED_TIMES,
-                            intervalMinutes = plan?.schedule?.intervalMinutes,
-                            anchorEpochMillis = plan?.schedule?.anchorEpochMillis,
-                            doseAmount = plan?.medication?.doseAmount,
-                            doseUnit = plan?.medication?.doseUnit,
+                            scheduleMode = mode,
+                            intervalMinutes = interval,
+                            anchorEpochMillis = anchorMillis,
+                            doseAmount = doseAmount.takeIf { it.isNotBlank() },
+                            doseUnit = doseUnit.takeIf { it.isNotBlank() },
                         ),
                         previousPlan = plan,
                         newImageUri = selectedPhotoUri,
@@ -865,6 +908,44 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                 }
             }
             item {
+                Text(stringResource(R.string.schedule_mode))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = mode == ScheduleMode.FIXED_TIMES, onClick = { mode = ScheduleMode.FIXED_TIMES },
+                        label = { Text(stringResource(R.string.fixed_times_mode)) })
+                    FilterChip(selected = mode == ScheduleMode.INTERVAL, onClick = { mode = ScheduleMode.INTERVAL },
+                        label = { Text(stringResource(R.string.interval_mode)) })
+                }
+            }
+            item {
+                OutlinedTextField(doseAmount, { doseAmount = it }, label = { Text(stringResource(R.string.structured_dose_amount)) }, modifier = Modifier.fillMaxWidth())
+                val units = listOf("tablet" to stringResource(R.string.unit_tablet), "capsule" to stringResource(R.string.unit_capsule),
+                    "mg" to stringResource(R.string.unit_mg), "mL" to stringResource(R.string.unit_ml))
+                OutlinedTextField(units.firstOrNull { it.first == doseUnit }?.second ?: doseUnit,
+                    { value -> doseUnit = units.firstOrNull { it.second == value }?.first ?: value },
+                    label = { Text(stringResource(R.string.structured_dose_unit)) }, modifier = Modifier.fillMaxWidth())
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    units.forEach { (unit, label) ->
+                        FilterChip(selected = doseUnit == unit, onClick = { doseUnit = unit }, label = { Text(label) })
+                    }
+                }
+            }
+            if (mode == ScheduleMode.INTERVAL) item {
+                Text(stringResource(R.string.interval_anchor))
+                TextButton(onClick = {
+                    DatePickerDialog(context, { _, year, month, day ->
+                        anchorDate = LocalDate.of(year, month + 1, day); anchorEdited = true
+                    }, anchorDate.year, anchorDate.monthValue - 1, anchorDate.dayOfMonth).show()
+                }) { Text(anchorDate.toString()) }
+                TextButton(onClick = {
+                    TimePickerDialog(context, { _, hour, minute ->
+                        anchorTime = LocalTime.of(hour, minute); anchorEdited = true
+                    }, anchorTime.hour, anchorTime.minute, true).show()
+                }) { Text(anchorTime.format(timeFormatter(locale))) }
+                OutlinedTextField(intervalHours, { intervalHours = it }, label = { Text(stringResource(R.string.interval_hours)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(intervalMins, { intervalMins = it }, label = { Text(stringResource(R.string.interval_minutes)) }, modifier = Modifier.fillMaxWidth())
+            }
+            if (mode == ScheduleMode.FIXED_TIMES) {
+            item {
                 Text(stringResource(R.string.daily_times), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 times.sorted().forEach { time ->
@@ -896,6 +977,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                         )
                     }
                 }
+            }
             }
             item {
                 Text(stringResource(R.string.time_zone), style = MaterialTheme.typography.titleMedium)
@@ -1016,14 +1098,6 @@ private fun MedicationImage(uri: Uri, modifier: Modifier) {
         update = { it.setImageURI(uri) },
         modifier = modifier.clip(RoundedCornerShape(12.dp)),
     )
-}
-
-@Composable
-private fun minuteTicker() = produceState(initialValue = Instant.now()) {
-    while (true) {
-        value = Instant.now()
-        delay(60_000)
-    }
 }
 
 private fun com.example.medicationreminder.domain.model.MedicationSchedule.zoneId(): ZoneId = when (timeZoneMode) {

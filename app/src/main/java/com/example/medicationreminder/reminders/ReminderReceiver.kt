@@ -7,6 +7,7 @@ import android.util.Log
 import com.example.medicationreminder.appContainer
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import java.time.Instant
+import com.example.medicationreminder.domain.model.ReminderStage
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,36 +21,21 @@ class ReminderReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                val persistedPending = container.repository.pendingReminders(occurrence.medicationId)
-                    .any { it.matches(occurrence) }
-                handleFiredOccurrence(
-                    occurrence = occurrence,
-                    persistedPending = persistedPending,
-                    activeDoses = container.repository.activeScheduledDoses(),
-                    isDecided = {
-                        container.repository.hasDoseDecision(occurrence)
-                    },
-                    showReminder = { dose ->
-                        container.notifications.showReminder(
-                            occurrence = occurrence,
-                            alias = dose.medicationAlias,
-                            dosage = dose.dosageText,
-                        )
-                    },
-                    cancelVisibleReminder = {
-                        container.notifications.cancelReminder(occurrence.doseTimeId)
-                    },
-                    scheduleFollowing = { dose, boundary ->
-                        val result = container.scheduler.scheduleAfter(dose, boundary)
-                        if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
-                            Log.i(TAG, "Next reminder after delivery is waiting for exact-alarm access")
-                        }
-                    },
-                )
-                // Optional self-heal: restore reminders the system cleared while the process was frozen.
-                if (container.preferences.repostMissedReminders.first()) {
-                    container.missedReminderReposter.repostUndecidedOverdue()
+                val phase = intent.getStringExtra(EXTRA_PHASE)?.let { value ->
+                    ReminderStage.entries.firstOrNull { it.name == value }
+                } ?: ReminderStage.DUE // Pre-upgrade alarms carry the real due instant but no phase.
+                val now = Instant.now()
+                if (reminderTrigger(occurrence, phase).isAfter(now)) return@launch
+                runCatching {
+                    container.missedReminderReposter.deliverOccurrence(occurrence, phase, alert = true,
+                        legacy = false, now = now)
+                }.onFailure { Log.e(TAG, "Unable to persist/post current reminder; advancing its future phase", it) }
+                val dose = container.repository.activeScheduledDoses().firstOrNull {
+                    it.medicationId == occurrence.medicationId && it.doseTimeId == occurrence.doseTimeId
                 }
+                if (dose != null) container.scheduler.schedulePhaseAfter(dose, phase,
+                    maxOf(now, reminderTrigger(occurrence, phase)))
+
             } catch (error: Exception) {
                 Log.e(TAG, "Unable to deliver reminder occurrence and schedule its successor", error)
             } finally {
@@ -60,6 +46,7 @@ class ReminderReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_REMIND = "com.example.medicationreminder.REMIND"
+        const val EXTRA_PHASE = "reminder_phase"
         const val EXTRA_MEDICATION_ID = "medication_id"
         const val EXTRA_DOSE_TIME_ID = "dose_time_id"
         const val EXTRA_SCHEDULED_FOR = "scheduled_for"

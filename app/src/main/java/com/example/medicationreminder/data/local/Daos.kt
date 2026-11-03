@@ -134,6 +134,9 @@ interface DoseEventDao {
 @Dao
 interface PendingReminderDao {
     @Query("SELECT * FROM pending_reminders ORDER BY scheduledForEpochMillis, doseTimeId")
+    fun observeAll(): Flow<List<PendingReminderEntity>>
+
+    @Query("SELECT * FROM pending_reminders ORDER BY scheduledForEpochMillis, doseTimeId")
     suspend fun getAll(): List<PendingReminderEntity>
 
     @Query("SELECT * FROM pending_reminders WHERE medicationId = :medicationId ORDER BY scheduledForEpochMillis, doseTimeId")

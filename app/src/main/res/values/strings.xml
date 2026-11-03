@@ -77,7 +77,7 @@
     <string name="cancel">Cancel</string>
     <string name="choose_time_zone">Choose time zone</string>
     <string name="search">Search</string>
-    <string name="error_missing_medication_fields">Add a name, dosage, at least one time, and one weekday.</string>
+    <string name="error_missing_medication_fields">Add a name, dosage, and complete the schedule fields.</string>
     <string name="error_save_medication">Could not save this medication.</string>
     <string name="error_delete_medication">Could not delete this medication.</string>
     <string name="lockscreen_guidance_title">Reminders on the lockscreen</string>
@@ -115,4 +115,28 @@
     <string name="detail_skip_action">Skip this dose</string>
     <string name="detail_photo_description">Medication photo</string>
     <string name="detail_pending_heading">Unconfirmed dose</string>
+    <string name="reminder_silent_channel">Silent medication reminders</string>
+    <string name="reminder_due_soon">Medication due soon</string>
+    <string name="reminder_due_now">Medication is due</string>
+    <string name="reminder_sound">Reminder sound</string>
+    <string name="reminder_sound_description">Play one notification sound before and at each dose. System notification settings still apply.</string>
+    <string name="error_decide_dose">Could not save this decision. The reminder has been kept; please try again.</string>
+    <string name="error_interval_input">Enter a positive interval in hours and minutes (minutes 0–59).</string>
+    <string name="countdown_until">Due in %1$s</string>
+    <string name="countdown_overdue">Medication is due · overdue %1$s</string>
+    <string name="schedule_mode">Schedule mode</string>
+    <string name="fixed_times_mode">Fixed times</string>
+    <string name="interval_mode">By interval</string>
+    <string name="interval_anchor">First dose date and time</string>
+    <string name="interval_hours">Interval hours</string>
+    <string name="interval_minutes">Interval minutes</string>
+    <string name="structured_dose_amount">Amount per dose (optional)</string>
+    <string name="structured_dose_unit">Dose unit (or enter a custom unit)</string>
+    <string name="unit_tablet">tablet</string>
+    <string name="unit_capsule">capsule</string>
+    <string name="unit_mg">mg</string>
+    <string name="unit_ml">mL</string>
+    <string name="interval_schedule_description">Every %1$d minutes from:</string>
+    <string name="current_dose">Current dose: %1$s</string>
+    <string name="error_save_settings">Could not save this setting. Please try again.</string>
 </resources>

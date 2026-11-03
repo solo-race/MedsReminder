@@ -77,7 +77,7 @@
     <string name="cancel">取消</string>
     <string name="choose_time_zone">选择时区</string>
     <string name="search">搜索</string>
-    <string name="error_missing_medication_fields">请填写名称和剂量，并至少选择一个时间和一个星期几。</string>
+    <string name="error_missing_medication_fields">请填写药名、剂量说明及完整的提醒计划。</string>
     <string name="error_save_medication">无法保存此药物。</string>
     <string name="error_delete_medication">无法删除此药物。</string>
     <string name="lockscreen_guidance_title">锁屏显示提醒</string>
@@ -115,4 +115,28 @@
     <string name="detail_skip_action">跳过本次</string>
     <string name="detail_photo_description">药物照片</string>
     <string name="detail_pending_heading">待确认服药</string>
+    <string name="reminder_silent_channel">静音服药提醒</string>
+    <string name="reminder_due_soon">即将到服药时间</string>
+    <string name="reminder_due_now">已到服药时间</string>
+    <string name="reminder_sound">响铃提示</string>
+    <string name="reminder_sound_description">每次预提醒和到点各提示一次。仍受系统通知设置控制。</string>
+    <string name="error_decide_dose">未能保存服药操作，已保留提醒，请重试。</string>
+    <string name="error_interval_input">请输入大于0的间隔，分钟为0至59。</string>
+    <string name="countdown_until">距服药时间 %1$s</string>
+    <string name="countdown_overdue">已到服药时间 · 已逾期 %1$s</string>
+    <string name="schedule_mode">提醒模式</string>
+    <string name="fixed_times_mode">固定时刻</string>
+    <string name="interval_mode">按间隔</string>
+    <string name="interval_anchor">首次服药日期与时间</string>
+    <string name="interval_hours">间隔小时</string>
+    <string name="interval_minutes">间隔分钟</string>
+    <string name="structured_dose_amount">每次剂量数值（可选）</string>
+    <string name="structured_dose_unit">剂量单位（可自定义）</string>
+    <string name="unit_tablet">片</string>
+    <string name="unit_capsule">粒</string>
+    <string name="unit_mg">毫克</string>
+    <string name="unit_ml">毫升</string>
+    <string name="interval_schedule_description">每隔 %1$d 分钟，起点：</string>
+    <string name="current_dose">当前服药：%1$s</string>
+    <string name="error_save_settings">未能保存设置，请重试。</string>
 </resources>

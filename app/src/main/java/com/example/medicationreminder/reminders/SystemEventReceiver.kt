@@ -29,7 +29,7 @@ class SystemEventReceiver : BroadcastReceiver() {
                 if (systemEventRequiresReschedule(intent.action)) {
                     val exactAlarmsAllowed = container.scheduler.canScheduleExactAlarms()
                     if (systemEventCanReschedule(intent.action, exactAlarmsAllowed)) {
-                        runCatching { container.scheduler.scheduleAll() }
+                        runCatching { container.restoreReminders() }
                             .onSuccess { result ->
                                 if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                                     Log.i(TAG, "System-event reminder rebuild is waiting for exact-alarm access")
@@ -37,12 +37,9 @@ class SystemEventReceiver : BroadcastReceiver() {
                             }
                             .onFailure { error -> Log.e(TAG, "Unable to rebuild reminder alarms", error) }
                     } else {
+                        container.missedReminderReposter.restorePending()
                         Log.i(TAG, "Skipping system-event reminder rebuild; waiting for exact-alarm access")
                     }
-                }
-                if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-                    runCatching { container.missedReminderReposter.repostUndecidedOverdue() }
-                        .onFailure { error -> Log.e(TAG, "Unable to repost missed reminders", error) }
                 }
 
                 if (intent.action == Intent.ACTION_TIMEZONE_CHANGED) {

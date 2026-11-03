@@ -118,8 +118,8 @@ class IntervalMedicationPersistenceTest {
         val instant = Instant.parse("2026-11-03T18:00:00Z")
         val pending = original.occurrenceAt(instant)
         assertTrue(repository.registerPendingReminder(pending, ReminderStage.DUE))
-        repository.saveMedication(draft().copy(id = id, scheduleMode = ScheduleMode.FIXED_TIMES,
-            times = listOf(LocalTime.of(8, 0)), weekdays = DayOfWeek.entries.toSet(), manualZoneId = "Pacific/Kiritimati"))
+        val schedule = database.scheduleDao().getForMedication(id)!!
+        database.scheduleDao().update(schedule.copy(manualZoneId = "Pacific/Kiritimati"))
         assertEquals(DoseDecisionResult.Recorded(DoseStatus.TAKEN), repository.decideDose(pending, DoseStatus.TAKEN))
         val rebuilt = repository.activeScheduledDoses().single().occurrenceAt(Instant.parse("2026-11-02T18:00:00Z"))
         assertTrue(repository.hasDoseDecision(rebuilt))

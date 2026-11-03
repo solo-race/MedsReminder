@@ -19,7 +19,7 @@ class TimeZoneActionReceiver : BroadcastReceiver() {
                 val container = context.appContainer
                 if (intent.action == ACTION_USE_DEVICE) {
                     container.repository.setScheduleToDeviceTime(scheduleId)
-                    val scheduleResult = container.scheduler.scheduleAll()
+                    val scheduleResult = container.restoreReminders()
                     if (scheduleResult == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                         Log.i(TAG, "Time-zone reminder rebuild is waiting for exact-alarm access")
                     }

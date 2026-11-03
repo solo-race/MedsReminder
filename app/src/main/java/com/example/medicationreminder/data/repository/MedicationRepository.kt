@@ -39,6 +39,7 @@ interface MedicationRepository {
     suspend fun deleteMedication(medicationId: Long): String?
     suspend fun activeScheduledDoses(): List<ScheduledDose>
     suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean
+    fun observePendingReminders(): Flow<List<PendingReminder>>
     suspend fun pendingReminders(medicationId: Long? = null): List<PendingReminder>
     /** True only when a new pending or PRE -> DUE transition was saved. */
     suspend fun registerPendingReminder(occurrence: DoseOccurrence, stage: ReminderStage): Boolean
@@ -257,7 +258,12 @@ internal class RoomMedicationRepository(
                 else draft.times.map { it.toMinuteOfDay() },
         )
         if (sequenceChanged) doseTimeDao.deleteByIds(existingTimes.map { it.id })
-        if (!draft.enabled) pendingDao.deleteForMedication(medicationId)
+        val fixedPlanChanged = existingSchedule?.scheduleMode == ScheduleMode.FIXED_TIMES && (
+            existingSchedule.weekdaysMask != draft.weekdays.toMask() ||
+                existingSchedule.timeZoneMode != draft.timeZoneMode || existingSchedule.manualZoneId != draft.manualZoneId ||
+                existingTimes.filter { it.enabled }.map { it.minuteOfDay }.sorted() !=
+                    draft.times.map { it.toMinuteOfDay() }.distinct().sorted())
+        if (!draft.enabled || fixedPlanChanged) pendingDao.deleteForMedication(medicationId)
         if (reconciliation.idsToDelete.isNotEmpty()) {
             doseTimeDao.deleteByIds(reconciliation.idsToDelete)
         }
@@ -324,11 +330,9 @@ internal class RoomMedicationRepository(
                 .atZone(pending?.zoneId?.let(ZoneId::of) ?: occurrence.zoneId)
                 .toLocalDate()
                 .toEpochDay()
-            val existing = if (schedule?.scheduleMode == ScheduleMode.INTERVAL) {
-                doseEventDao.forOccurrence(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
-            } else {
-                doseEventDao.firstForLogicalDay(occurrence.doseTimeId, scheduledLocalEpochDay)
-            }
+            val exact = doseEventDao.forOccurrence(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
+            val existing = exact ?: if (schedule?.scheduleMode == ScheduleMode.INTERVAL) null
+                else doseEventDao.firstForLogicalDay(occurrence.doseTimeId, scheduledLocalEpochDay)
             if (existing != null) {
                 pendingDao.delete(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
                 return@withTransaction DoseDecisionResult.AlreadyDecided(existing.status)
@@ -356,14 +360,19 @@ internal class RoomMedicationRepository(
     override suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean = database.withTransaction {
         val slot = doseTimeDao.getById(occurrence.doseTimeId)
         val schedule = slot?.let { scheduleDao.getById(it.scheduleId) }
-        if (schedule?.scheduleMode == ScheduleMode.INTERVAL) {
-            doseEventDao.forOccurrence(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli()) != null
-        } else {
+        if (doseEventDao.forOccurrence(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli()) != null) true
+        else if (schedule?.scheduleMode == ScheduleMode.INTERVAL) false
+        else {
             val pending = pendingDao.get(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
             val zone = pending?.zoneId?.let(ZoneId::of) ?: occurrence.zoneId
             doseEventDao.existsForLogicalDay(occurrence.doseTimeId,
                 occurrence.scheduledFor.atZone(zone).toLocalDate().toEpochDay())
         }
+    }
+
+    override fun observePendingReminders(): Flow<List<PendingReminder>> = pendingDao.observeAll().map { rows ->
+        rows.map { PendingReminder(DoseOccurrence(it.medicationId, it.doseTimeId,
+            Instant.ofEpochMilli(it.scheduledForEpochMillis), ZoneId.of(it.zoneId)), it.stage) }
     }
 
     override suspend fun pendingReminders(medicationId: Long?): List<PendingReminder> =

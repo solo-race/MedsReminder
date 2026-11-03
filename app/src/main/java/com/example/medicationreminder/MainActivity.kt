@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
                 ),
             ),
             reapplied = reapplied,
+            legacy = !intent.getBooleanExtra(com.example.medicationreminder.reminders.ReminderNotifications.EXTRA_MODERN_NOTIFICATION, false),
         )
     }
 

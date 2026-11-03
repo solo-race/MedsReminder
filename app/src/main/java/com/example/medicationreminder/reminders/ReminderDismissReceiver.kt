@@ -6,6 +6,8 @@ import android.content.Intent
 import com.example.medicationreminder.appContainer
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import java.time.Instant
+import com.example.medicationreminder.domain.model.ReminderStage
+import android.util.Log
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,29 +25,11 @@ class ReminderDismissReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val container = context.appContainer
-                val persistedPending = container.repository.pendingReminders(occurrence.medicationId)
-                    .any { it.matches(occurrence) }
-                val dose = container.repository.activeScheduledDoses()
-                    .firstOrNull { it.matchesOccurrence(occurrence, persistedPending) }
-                    ?: return@launch
-                deliverReminderIfUndecided(
-                    dose = dose,
-                    persistedPending = persistedPending,
-                    occurrence = occurrence,
-                    isDecided = {
-                        container.repository.hasDoseDecision(occurrence)
-                    },
-                    showReminder = {
-                        container.notifications.showReminder(
-                            occurrence = occurrence,
-                            alias = dose.medicationAlias,
-                            dosage = dose.dosageText,
-                        )
-                    },
-                    cancelVisibleReminder = {
-                        container.notifications.cancelReminder(occurrence.doseTimeId)
-                    },
-                )
+                container.missedReminderReposter.deliverOccurrence(occurrence,
+                    if (occurrence.scheduledFor.isAfter(Instant.now())) ReminderStage.PRE else ReminderStage.DUE,
+                    alert = false, legacy = !intent.getBooleanExtra(ReminderNotifications.EXTRA_MODERN_NOTIFICATION, false))
+            } catch (error: Exception) {
+                Log.e("ReminderDismiss", "Unable to restore dismissed reminder", error)
             } finally {
                 pendingResult.finish()
             }

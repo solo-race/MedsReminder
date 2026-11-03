@@ -11,6 +11,13 @@ import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
+import android.content.res.Configuration
+import java.util.Locale
+import android.widget.Toast
+import android.util.Log
+import com.example.medicationreminder.R
 
 class ReminderActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -20,6 +27,15 @@ class ReminderActionReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 context.appContainer.doseDecisionUseCase(occurrence, status)
+                if (!intent.getBooleanExtra(ReminderNotifications.EXTRA_MODERN_NOTIFICATION, false))
+                    context.appContainer.notifications.cancelLegacyReminder(occurrence.doseTimeId)
+            } catch (error: Exception) {
+                Log.e("ReminderAction", "Unable to record dose decision; notification retained", error)
+                val language = context.appContainer.preferences.language.first()
+                val message = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+                    setLocale(Locale.forLanguageTag(language.languageTag))
+                }).getString(R.string.error_decide_dose)
+                withContext(Dispatchers.Main) { Toast.makeText(context, message, Toast.LENGTH_LONG).show() }
             } finally {
                 pendingResult.finish()
             }

@@ -39,6 +39,18 @@ class DoseDecisionUseCaseTest {
         expectedStaleEffects = 1,
     )
 
+    @Test
+    fun failedDatabaseDecisionNeverRunsNotificationCleanupEffects() = kotlinx.coroutines.runBlocking {
+        val repository = object : DoseDecisionRepository {
+            override suspend fun decideDose(occurrence: DoseOccurrence, status: DoseStatus): DoseDecisionResult =
+                error("database write failed")
+        }
+        val effects = FakeDoseDecisionEffects()
+        assertTrue(runCatching { DoseDecisionUseCase(repository, effects)(occurrence, DoseStatus.TAKEN) }.isFailure)
+        assertTrue(effects.persistedOccurrences.isEmpty())
+        assertTrue(effects.staleOccurrences.isEmpty())
+    }
+
     private fun runDecisionTest(
         result: DoseDecisionResult,
         expectedPersistedEffects: Int,

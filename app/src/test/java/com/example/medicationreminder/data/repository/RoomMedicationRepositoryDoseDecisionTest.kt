@@ -162,6 +162,21 @@ class RoomMedicationRepositoryDoseDecisionTest {
         assertNull(persistedDecisionStatus())
     }
 
+    @Test
+    fun exactOccurrenceDecisionSurvivesTravelToADifferentLogicalDay() = runBlocking {
+        val original = occurrence.copy(scheduledFor = Instant.parse("2026-11-03T18:00:00Z"), zoneId = ZoneId.of("Pacific/Honolulu"))
+        database.scheduleDao().update(schedule.copy(weekdaysMask = 127, manualZoneId = original.zoneId.id))
+        assertEquals(DoseDecisionResult.Recorded(DoseStatus.TAKEN), repository.decideDose(original, DoseStatus.TAKEN))
+        database.scheduleDao().update(schedule.copy(weekdaysMask = 127, manualZoneId = "Pacific/Kiritimati"))
+        val sameInstantNewDay = original.copy(zoneId = ZoneId.of("Pacific/Kiritimati"))
+        assertTrue(original.scheduledFor.atZone(original.zoneId).toLocalDate() !=
+            sameInstantNewDay.scheduledFor.atZone(sameInstantNewDay.zoneId).toLocalDate())
+        assertTrue(repository.hasDoseDecision(sameInstantNewDay))
+        assertEquals(DoseDecisionResult.AlreadyDecided(DoseStatus.TAKEN),
+            repository.decideDose(sameInstantNewDay, DoseStatus.SKIPPED))
+        assertEquals(1, database.openHelper.readableDatabase.query("SELECT * FROM dose_events").use { it.count })
+    }
+
     private suspend fun insertActiveFixture() {
         database.medicationDao().insert(medication)
         database.scheduleDao().insert(schedule)

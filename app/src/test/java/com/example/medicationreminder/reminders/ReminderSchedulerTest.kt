@@ -83,14 +83,14 @@ class ReminderSchedulerTest {
     }
 
     @Test
-    fun grantedPermissionRebuildsOneStableAlarmForRepeatedScheduleAllCalls() = runBlocking {
+    fun grantedPermissionRebuildsTwoStablePhaseAlarmsForRepeatedScheduleAllCalls() = runBlocking {
         val scheduler = ReminderScheduler(context, repository(listOf(dose)))
         val boundary = Instant.parse("2026-09-07T07:30:00Z")
 
         assertEquals(ScheduleResult.SCHEDULED, scheduler.scheduleAfter(dose, boundary))
         assertEquals(ScheduleResult.SCHEDULED, scheduler.scheduleAfter(dose, boundary))
 
-        assertEquals(1, shadowOf(alarmManager).scheduledAlarms.size)
+        assertEquals(2, shadowOf(alarmManager).scheduledAlarms.size)
     }
 
     @Test
@@ -98,7 +98,7 @@ class ReminderSchedulerTest {
         val scheduler = ReminderScheduler(context, repository(listOf(dose)))
 
         assertEquals(ScheduleResult.SCHEDULED, scheduler.scheduleAll())
-        assertEquals(1, shadowOf(alarmManager).scheduledAlarms.size)
+        assertEquals(2, shadowOf(alarmManager).scheduledAlarms.size)
     }
 
     @Test
@@ -114,7 +114,7 @@ class ReminderSchedulerTest {
         val pendingIntent = scheduler.reminderPendingIntent(occurrence)
         val savedIntent = shadowOf(pendingIntent).savedIntent
 
-        assertEquals("${ReminderReceiver.ACTION_REMIND}.${occurrence.doseTimeId}", savedIntent.action)
+        assertEquals("${ReminderReceiver.ACTION_REMIND}.${occurrence.doseTimeId}.DUE", savedIntent.action)
         assertEquals(occurrence.medicationId, savedIntent.getLongExtra(ReminderReceiver.EXTRA_MEDICATION_ID, -1))
         assertEquals(occurrence.doseTimeId, savedIntent.getLongExtra(ReminderReceiver.EXTRA_DOSE_TIME_ID, -1))
         assertEquals(occurrence.scheduledFor.toEpochMilli(), savedIntent.getLongExtra(ReminderReceiver.EXTRA_SCHEDULED_FOR, -1))
@@ -153,6 +153,7 @@ class ReminderSchedulerTest {
             override suspend fun deleteMedication(medicationId: Long): String? = error("unused")
             override suspend fun activeScheduledDoses(): List<ScheduledDose> = doses
             override suspend fun hasDoseDecision(occurrence: DoseOccurrence): Boolean = false
+            override fun observePendingReminders(): Flow<List<com.example.medicationreminder.domain.model.PendingReminder>> = emptyFlow()
             override suspend fun pendingReminders(medicationId: Long?): List<com.example.medicationreminder.domain.model.PendingReminder> = emptyList()
             override suspend fun registerPendingReminder(occurrence: DoseOccurrence, stage: com.example.medicationreminder.domain.model.ReminderStage): Boolean = error("unused")
             override suspend fun deletePendingReminder(occurrence: DoseOccurrence) = error("unused")

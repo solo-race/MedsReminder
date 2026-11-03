@@ -6,6 +6,7 @@ import com.example.medicationreminder.domain.model.ScheduleMode
 import com.example.medicationreminder.domain.scheduling.NextDoseCalculator
 import com.example.medicationreminder.reminders.nextUndecidedOccurrence
 import java.time.Instant
+import androidx.lifecycle.repeatOnLifecycle
 
 /**
  * Home selects today's most recent undecided due occurrence before any future occurrence.
@@ -34,3 +35,26 @@ internal suspend fun homeDetailOccurrence(
     }
     return earliest
 }
+
+
+/** Only presentation time ticks; occurrence selection and database access do not. */
+@androidx.compose.runtime.Composable
+internal fun occurrenceClock(): androidx.compose.runtime.State<Instant> {
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    return androidx.compose.runtime.produceState(Instant.now(), lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) { value = Instant.now(); kotlinx.coroutines.delay(1_000) }
+        }
+    }
+}
+
+internal fun countdownTime(occurrence: DoseOccurrence, now: Instant): String {
+    val seconds = java.time.Duration.between(now, occurrence.scheduledFor).abs().seconds
+    return java.lang.String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+}
+
+@androidx.compose.runtime.Composable
+internal fun occurrenceCountdown(occurrence: DoseOccurrence, now: Instant): String =
+    androidx.compose.ui.res.stringResource(if (occurrence.scheduledFor.isAfter(now))
+        com.example.medicationreminder.R.string.countdown_until else com.example.medicationreminder.R.string.countdown_overdue,
+        countdownTime(occurrence, now))

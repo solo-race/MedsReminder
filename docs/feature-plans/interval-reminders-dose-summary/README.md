@@ -1,7 +1,7 @@
 # 周期间隔提醒与剂量汇总实施计划
 
 版本：1.1；编制及基线修订日期：2026-11-03（北京时间）。
-状态：主控已转达基线计划独立审阅 PASS（无阻塞）；P1 实现已交付，状态 A → B，等待独立阶段审阅及 Room 运行验证。P2–P4 尚未实施。
+状态：主控已转达 P1（`2f75eb6`）独立审阅 PASS，无阻塞；P1 为 D。P2 实现已交付，状态 A → B，等待独立阶段审阅；P3–P4 尚未实施。受阻的 Room/Robolectric 检查仍未补跑。
 仓库：`solo-race/MedsReminder`。
 工作分支：`codex/feature-interval-reminders-dose-summary`。
 当前实施基线：合并提交 `2b6822ebb098adabba045415b2d460543e25d14b`，已整合 `master` 的 `de2f6b674c64565f95883e704341c6c599049214`，包含自启动及待服选择修复 `2cbdad2`。分支最初从 `codex/feature-medication-detail-dose-actions` 的 `2e05c90` 创建，原计划提交为 `9c41dda`；这些仅为创建历史，不再作为当前实施基线。后续不重建或覆盖已有历史。
@@ -16,7 +16,7 @@
 4. 通知持续对应同一次未处理服药，直到 Taken 或 Skipped；查看应用或通知不算处理。
 5. 记录页顶部增加“剂量汇总”入口，打开独立汇总页面，按药物和剂量单位汇总。
 
-最初计划轮仅交付计划及文档；本轮按授权只实施 P1，完成后停止并提交一次。不创建 PR、不合并、不打标签、不发布。实施复用本项目模块，不新建调度服务、计时后台服务、统计数据库、通用任务框架或云端能力。
+最初计划轮仅交付计划及文档；本轮按授权只实施 P2，完成后停止并提交一次。不创建 PR、不合并、不打标签、不发布。实施复用本项目模块，不新建调度服务、计时后台服务、统计数据库、通用任务框架或云端能力。
 
 ## 2. 已核实的基线与必须修改的原因
 
@@ -153,7 +153,7 @@ UI 用生命周期感知的轻量定时刷新显示时间，页面不可见停�
 
 ### P2 — 提醒链路、倒计时与响铃开关
 
-依赖：P1独立 review 通过。
+依赖：P1独立 review 通过；主控已转达针对 `2f75eb6` 的 PASS、无阻塞结论。
 
 主要文件：`ReminderScheduler.kt / ReminderReceiver.kt / ReminderDelivery.kt / ReminderNotifications.kt / ReminderDismissReceiver.kt / ReminderActionReceiver.kt / ReminderDoseDecisionEffects.kt / MissedReminderReposter.kt / SystemEventReceiver.kt`、`AppPreferences.kt`、`MedicationReminderApplication.kt`、`MedicationViewModel.kt`、`MedicationApp.kt`、`MedicationDetailScreen.kt`。
 
@@ -243,17 +243,25 @@ review 使用新时间戳文件 `docs/review/YYYY-MM-DD-HHmm-sgt-<scope>.md`，�
 | 阶段 | 当前状态 | 下一动作 |
 | --- | --- | --- |
 | 计划基线修订 | 已落实；主控转达独立审阅 PASS，无阻塞 | 保留该基线与审阅约束 |
-| P1 数据与间隔 | B / 实现已交付，独立阶段审阅待进行 | 独立审阅本阶段；受阻的Room迁移/仓储验证如实延期记录，阶段推进依审阅结论 |
-| P2 提醒与交互 | 未开始，依赖P1通过 | 等待P1有效review |
+| P1 数据与间隔 | D / 主控转达独立审阅 PASS，无阻塞 | 保留P1受阻验证记录，不将其写作通过 |
+| P2 提醒与交互 | B / 实现已交付，独立阶段审阅待进行 | 独立审阅P2；Room/通知运行、音频及生命周期检查仍待验证 |
 | P3 汇总 | 未开始，依赖P2通过 | 等待P2有效review |
 | P4 验证与发布准备 | 未开始，依赖P3通过 | 集成验收与交付 |
 
-### P1 交付检查（2026-11-03）
+### P1 交付检查（2026-11-03，当轮记录；后续PASS见状态表）
 
 - 已实现：Room v4 迁移及旧迁移链、interval/dose-snapshot/pending 数据映射、稳定 slot 协调、固定锚点 interval next/recent-overdue、统一 occurrence 决策查询与校验、决策事务内快照及 pending 清理；相关调用点可编译。旧编辑器只保留尚无控件的新字段，不声称能创建间隔计划。
 - 自检：主源码/KSP及测试源码编译成功；40项针对性 JVM 测试通过（calculator 12、Detail 17、delivery 4、slot reconcile 7），debug APK 实际重新打包成功。迁移的10条实际 SQL 在 SQLite 执行后，5张表的列/默认值/外键/索引与 KSP v4 schema 一致，旧数据/null快照/复合唯一性及级联检查通过。此 SQLite 检查不等于 Android Room 运行验证。
 - 限制：首次完整 `testDebugUnitTest assembleDebug` 在9个 Robolectric类初始化时因 `/home/agent/.robolectric-download-lock` 不可写而失败（101项中92通过、9项初始化失败）；这些类的方法未进入执行，包括新增 Room 迁移和 interval 仓储集成用例。不以旧报告或后续40项针对性通过掩盖该失败；完整套件、Room运行验证、lint及实机验收仍待主控VM或用户本地执行。未反复重跑相同的受阻初始化。按用户后续指示，环境受阻检查可以延期，不因此停止其他可做的静态实施和独立审阅；审阅必须保留这些未验证项，不得写作通过。
 - 交付状态为 P1 / B，尚未获得独立阶段审阅或整体验收；PRE/DUE投递、pending恢复/首页选择、响铃设置、汇总页面均留在后续阶段。
+
+### P2 交付检查（2026-11-03）
+
+- 输入为 `2f75eb6`，主控转达其独立审阅 PASS；本轮 A → B，不进入P3。实现独立PRE/DUE alarm及五分钟窗口补建、持久pending发布/静音恢复、完整occurrence通知/PendingIntent身份、前后决策复核、响铃开关及静音channel、首页/详情当前occurrence和生命周期倒计时、间隔/剂量编辑控件。纯元数据保存保留提醒，显式计划变更/删除在数据库提交成功后清理；决策失败保留通知并显示反馈。
+- 旧slot alarm在重建时取消，旧通知不盲删；收到旧content/action/dismiss中的完整occurrence后才做精确转换或清理。旧版未落库通知仍不承诺跨重启恢复。恢复仅静默渲染到期状态，不提前消耗DUE响铃机会。
+- 按P1审阅提醒，固定模式决策及查询均先查exact occurrence再查logical-day；新增Honolulu→Kiritimati同instant跨local-day回归用例。该Room用例已编译，运行仍未验证。
+- 本轮实际自检：主源码/KSP和所有测试源码编译成功；70项针对性JVM用例通过，debug APK实际重新打包成功；139个中英文资源key唯一、对等、引用有效。命令、APK指纹及证据在 `docs/memory.md`。这些是implementer自检，不是独立审阅。
+- P1曾失败的9个Robolectric类本轮未补跑；新增Room/通知/DataStore集成用例也未运行，不能以源码编译或70项JVM通过替代。完整套件、lint、Compose实际交互、后台声音、锁屏及ColorOS实机检查仍待主控VM/用户本地验证。P3汇总页面和P4版本/发布准备均未实施。
 
 ## 9. 核对依据
 

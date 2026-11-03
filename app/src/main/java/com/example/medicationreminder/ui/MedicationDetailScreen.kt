@@ -53,6 +53,7 @@ import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.TimeZoneMode
 import com.example.medicationreminder.domain.model.scheduledDose
+import com.example.medicationreminder.domain.model.ScheduleMode
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -100,8 +101,10 @@ internal fun MedicationDetailScreen(
     viewModel: MedicationViewModel,
     onBack: () -> Unit,
     onEdit: (Long) -> Unit,
+    snackbarHost: @Composable () -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
+    val displayNow by occurrenceClock()
     val stateKey = detailDoseStateKey(plan, explicitOccurrence)
     val now = remember(stateKey) { Instant.now() }
     val initialLoad by produceState<LoadedDetailDoseState?>(initialValue = null, stateKey) {
@@ -130,6 +133,7 @@ internal fun MedicationDetailScreen(
     }
 
     Scaffold(
+        snackbarHost = snackbarHost,
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.medication_detail_title)) },
@@ -217,6 +221,7 @@ internal fun MedicationDetailScreen(
                         }), style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    if (occurrence != null && doseState.decided != true) Text(occurrenceCountdown(occurrence, displayNow))
                     if (doseState?.decided == true) {
                         // A readable status, not a fake clickable chip or two almost invisible disabled buttons.
                         Surface(color = MaterialTheme.colorScheme.secondaryContainer,
@@ -241,6 +246,10 @@ internal fun MedicationDetailScreen(
                                     is DoseDecisionResult.AlreadyDecided -> currentState.copy(decided = true, decidedStatus = result.status)
                                     DoseDecisionResult.StaleOccurrence -> currentState.copy(stale = true)
                                 }
+                                if (result != DoseDecisionResult.StaleOccurrence) {
+                                    viewModel.clearReminderOccurrence()
+                                    viewModel.loadNextOccurrence(plan.medication.id) { state = DetailDoseState(occurrence = it) }
+                                }
                             }
                         }) { Text(stringResource(R.string.detail_take_action), textAlign = TextAlign.Center) }
                         OutlinedButton(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
@@ -252,6 +261,10 @@ internal fun MedicationDetailScreen(
                                     is DoseDecisionResult.AlreadyDecided -> currentState.copy(decided = true, decidedStatus = result.status)
                                     DoseDecisionResult.StaleOccurrence -> currentState.copy(stale = true)
                                 }
+                                if (result != DoseDecisionResult.StaleOccurrence) {
+                                    viewModel.clearReminderOccurrence()
+                                    viewModel.loadNextOccurrence(plan.medication.id) { state = DetailDoseState(occurrence = it) }
+                                }
                             }
                         }) { Text(stringResource(R.string.detail_skip_action), textAlign = TextAlign.Center) }
                     }
@@ -260,6 +273,13 @@ internal fun MedicationDetailScreen(
             item {
                 DetailSection {
                     Text(stringResource(R.string.detail_schedule_label), style = MaterialTheme.typography.titleMedium)
+                    if (plan.schedule.scheduleMode == ScheduleMode.INTERVAL) {
+                        Text(stringResource(R.string.interval_schedule_description, plan.schedule.intervalMinutes ?: 0))
+                        plan.schedule.anchorEpochMillis?.let { anchor ->
+                            Text(DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM).withLocale(locale)
+                                .format(Instant.ofEpochMilli(anchor).atZone(plan.schedule.zoneIdForDetail())))
+                        }
+                    } else {
                     Text(stringResource(R.string.detail_weekdays_label), style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(when {
@@ -280,6 +300,7 @@ internal fun MedicationDetailScreen(
                                     style = MaterialTheme.typography.titleMedium)
                             }
                         }
+                    }
                     }
                     Text(when (plan.schedule.timeZoneMode) {
                         TimeZoneMode.DEVICE -> stringResource(R.string.detail_zone_device)

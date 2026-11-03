@@ -9,6 +9,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.net.Uri
+import android.content.res.Configuration
+import java.util.Locale
+import java.time.Instant
+import com.example.medicationreminder.domain.model.ReminderStage
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -21,7 +26,12 @@ fun lockscreenTitle(alias: String?, fallback: String): String =
     alias?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
 
 class ReminderNotifications(private val context: Context) {
-    fun createChannels() {
+    private fun localizedContext(languageTag: String?): Context = if (languageTag == null) context else
+        context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag(languageTag))
+        })
+
+    fun createChannels(languageTag: String? = null) {
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -33,6 +43,11 @@ class ReminderNotifications(private val context: Context) {
                 enableVibration(true)
             },
         )
+        manager.createNotificationChannel(NotificationChannel(SILENT_CHANNEL,
+            localizedContext(languageTag).getString(R.string.reminder_silent_channel), NotificationManager.IMPORTANCE_HIGH).apply {
+            setSound(null, null)
+            enableVibration(false)
+        })
         manager.createNotificationChannel(
             NotificationChannel(
                 TRAVEL_CHANNEL,
@@ -42,13 +57,19 @@ class ReminderNotifications(private val context: Context) {
         )
     }
 
-    fun showReminder(occurrence: DoseOccurrence, alias: String?, dosage: String) {
+    fun showReminder(occurrence: DoseOccurrence, alias: String?, dosage: String,
+        stage: ReminderStage = ReminderStage.DUE, soundEnabled: Boolean = true, alert: Boolean = true,
+        languageTag: String? = null) {
         if (!canPostNotifications()) return
-        val title = lockscreenTitle(alias, context.getString(R.string.notification_generic_title))
+        val resourcesContext = localizedContext(languageTag)
+        val title = lockscreenTitle(alias, resourcesContext.getString(R.string.notification_generic_title))
         val contentIntent = PendingIntent.getActivity(
             context,
             ReminderScheduler.requestCode(occurrence.doseTimeId, 1),
             Intent(context, MainActivity::class.java)
+                .setAction("OPEN.${occurrenceTag(occurrence)}")
+                .setData(Uri.parse("meds://reminder/${occurrence.doseTimeId}/${occurrence.scheduledFor.toEpochMilli()}"))
+                .putExtra(EXTRA_MODERN_NOTIFICATION, true)
                 .putExtra(MainActivity.EXTRA_MEDICATION_ID, occurrence.medicationId)
                 .putExtra(MainActivity.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
                 .putExtra(MainActivity.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
@@ -57,11 +78,16 @@ class ReminderNotifications(private val context: Context) {
         )
         val takenIntent = doseActionIntent(occurrence, DoseStatus.TAKEN)
         val skippedIntent = doseActionIntent(occurrence, DoseStatus.SKIPPED)
-        val reminder = NotificationCompat.Builder(context, REMINDER_CHANNEL)
+        val reminder = NotificationCompat.Builder(context, if (soundEnabled) REMINDER_CHANNEL else SILENT_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
-            .setContentText(dosage)
+            .setContentText("$dosage • ${resourcesContext.getString(if (stage == ReminderStage.PRE) R.string.reminder_due_soon else R.string.reminder_due_now)}")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$title — $dosage"))
+            .setWhen(occurrence.scheduledFor.toEpochMilli())
+            .setUsesChronometer(stage == ReminderStage.PRE)
+            .setChronometerCountDown(stage == ReminderStage.PRE)
+            .setSilent(!soundEnabled || !alert)
+            .setOnlyAlertOnce(!alert)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -69,13 +95,26 @@ class ReminderNotifications(private val context: Context) {
             .setAutoCancel(false)
             .setContentIntent(contentIntent)
             .setDeleteIntent(dismissedIntent(occurrence))
-            .addAction(0, context.getString(R.string.status_taken), takenIntent)
-            .addAction(0, context.getString(R.string.status_skipped), skippedIntent)
+            .addAction(0, resourcesContext.getString(R.string.status_taken), takenIntent)
+            .addAction(0, resourcesContext.getString(R.string.status_skipped), skippedIntent)
             .build()
-        postNotification(reminderNotificationId(occurrence.doseTimeId), reminder)
+        try { NotificationManagerCompat.from(context).notify(occurrenceTag(occurrence), OCCURRENCE_NOTIFICATION_ID, reminder) }
+        catch (_: SecurityException) { }
     }
 
+    fun cancelReminder(occurrence: DoseOccurrence) {
+        NotificationManagerCompat.from(context).cancel(occurrenceTag(occurrence), OCCURRENCE_NOTIFICATION_ID)
+    }
+
+    /** Slot cleanup is only for an explicit plan change, disable or deletion. */
     fun cancelReminder(doseTimeId: Long) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.activeNotifications.filter { it.tag?.startsWith("dose:$doseTimeId:") == true }
+            .forEach { manager.cancel(it.tag, it.id) }
+        cancelLegacyReminder(doseTimeId)
+    }
+
+    fun cancelLegacyReminder(doseTimeId: Long) {
         NotificationManagerCompat.from(context).cancel(reminderNotificationId(doseTimeId))
     }
 
@@ -105,7 +144,8 @@ class ReminderNotifications(private val context: Context) {
         context,
         ReminderScheduler.requestCode(occurrence.doseTimeId, if (status == DoseStatus.TAKEN) 2 else 3),
         Intent(context, ReminderActionReceiver::class.java)
-            .setAction("${ReminderActionReceiver.ACTION_RECORD}.${status.name}.${occurrence.doseTimeId}.${occurrence.scheduledFor.toEpochMilli()}")
+            .setAction("${ReminderActionReceiver.ACTION_RECORD}.${status.name}.${occurrenceTag(occurrence)}")
+            .putExtra(EXTRA_MODERN_NOTIFICATION, true)
             .putExtra(ReminderActionReceiver.EXTRA_MEDICATION_ID, occurrence.medicationId)
             .putExtra(ReminderActionReceiver.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
             .putExtra(ReminderActionReceiver.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
@@ -119,7 +159,8 @@ class ReminderNotifications(private val context: Context) {
             context,
             ReminderScheduler.requestCode(occurrence.doseTimeId, 6),
             Intent(context, ReminderDismissReceiver::class.java)
-                .setAction("${ReminderDismissReceiver.ACTION_DISMISSED}.${occurrence.doseTimeId}")
+                .setAction("${ReminderDismissReceiver.ACTION_DISMISSED}.${occurrenceTag(occurrence)}")
+                .putExtra(EXTRA_MODERN_NOTIFICATION, true)
                 .putExtra(ReminderDismissReceiver.EXTRA_MEDICATION_ID, occurrence.medicationId)
                 .putExtra(ReminderDismissReceiver.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
                 .putExtra(ReminderDismissReceiver.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
@@ -152,7 +193,11 @@ class ReminderNotifications(private val context: Context) {
     private fun reminderNotificationId(doseTimeId: Long) = ReminderScheduler.requestCode(doseTimeId, 100)
     private fun travelNotificationId(scheduleId: Long) = ReminderScheduler.requestCode(scheduleId, 200)
 
-    private companion object {
+    companion object {
+        const val EXTRA_MODERN_NOTIFICATION = "modern_occurrence_notification"
+        const val OCCURRENCE_NOTIFICATION_ID = 1
+        fun occurrenceTag(occurrence: DoseOccurrence) = "dose:${occurrence.doseTimeId}:${occurrence.scheduledFor.toEpochMilli()}"
+        const val SILENT_CHANNEL = "medication_reminders_silent"
         const val REMINDER_CHANNEL = "medication_reminders"
         const val TRAVEL_CHANNEL = "time_zone_changes"
     }

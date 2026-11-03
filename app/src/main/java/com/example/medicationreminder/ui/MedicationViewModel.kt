@@ -14,6 +14,7 @@ import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.ScheduleMode
+import com.example.medicationreminder.domain.model.ReminderStage
 import com.example.medicationreminder.reminders.ScheduleResult
 import java.time.Instant
 import java.time.ZoneId
@@ -41,6 +42,29 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         SharingStarted.WhileSubscribed(5_000),
         emptyList(),
     )
+    val pending = container.repository.observePendingReminders().stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val reminderSoundEnabled = container.preferences.reminderSoundEnabled.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    fun setReminderSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                container.preferences.setReminderSoundEnabled(enabled)
+                container.missedReminderReposter.restorePending()
+            }.onFailure { _error.value = R.string.error_save_settings }
+        }
+    }
+
+    fun onAppResumed() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { container.restoreReminders() }.onFailure { Log.e(TAG, "Resume recovery failed", it) }
+        }
+    }
+
+    fun invalidScheduleInput() { _error.value = R.string.error_interval_input }
+
     val history = container.repository.observeDoseHistory().stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -94,7 +118,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 container.preferences.updateAndGetPreviousDeviceZone(ZoneId.systemDefault().id)
-                container.scheduler.scheduleAll()
+                container.restoreReminders()
             }.onFailure { error ->
                 Log.e(TAG, "Unable to restore reminder alarms from the app process", error)
             }.onSuccess { result ->
@@ -117,10 +141,17 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      * recreation does not replay navigation. A genuine new delivery always counts, so a repeated
      * notification tap re-opens its Detail.
      */
-    fun onReminderIntent(entry: ReminderEntry, reapplied: Boolean) {
+    fun onReminderIntent(entry: ReminderEntry, reapplied: Boolean, legacy: Boolean = false) {
         if (reapplied && entry == lastDeliveredEntry) return
         lastDeliveredEntry = entry
         _reminderEntry.value = entry
+        if (legacy) entry.occurrence?.let { occurrence ->
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { container.missedReminderReposter.deliverOccurrence(occurrence,
+                    if (occurrence.scheduledFor.isAfter(Instant.now())) ReminderStage.PRE else ReminderStage.DUE,
+                    alert = false, legacy = true) }.onFailure { Log.e(TAG, "Legacy reminder conversion failed", it) }
+            }
+        }
     }
 
     /**
@@ -142,7 +173,11 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun setLanguage(language: AppLanguage) {
-        viewModelScope.launch { container.preferences.setLanguage(language) }
+        viewModelScope.launch {
+            container.preferences.setLanguage(language)
+            container.notifications.createChannels(language.languageTag)
+            container.missedReminderReposter.restorePending()
+        }
     }
 
     fun dismissPermissionPrompt() {
@@ -157,7 +192,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 if (container.scheduler.canScheduleExactAlarms()) {
-                    container.scheduler.scheduleAll()
+                    container.restoreReminders()
                 } else {
                     ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION
                 }
@@ -178,7 +213,12 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     fun newCameraCaptureUri(): Uri = container.imageStore.newCameraCaptureUri()
 
     suspend fun nextActionableOccurrence(medicationId: Long, now: Instant): DoseOccurrence? = withContext(Dispatchers.IO) {
-        homeDetailOccurrence(container.repository.activeScheduledDoses(), medicationId, now) { candidate ->
+        val active = container.repository.activeScheduledDoses()
+        val oldest = container.repository.pendingReminders(medicationId).firstOrNull { pending ->
+            active.any { it.matchesOccurrence(pending.occurrence, persistedPending = true) } &&
+                !container.repository.hasDoseDecision(pending.occurrence)
+        }
+        oldest?.occurrence ?: homeDetailOccurrence(active, medicationId, now) { candidate ->
             container.repository.hasDoseDecision(candidate)
         }
     }
@@ -191,16 +231,22 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         container.repository.hasDoseDecision(occurrence)
     }
 
+    fun loadNextOccurrence(medicationId: Long, onLoaded: (DoseOccurrence?) -> Unit) {
+        viewModelScope.launch { onLoaded(nextActionableOccurrence(medicationId, Instant.now())) }
+    }
+
     fun decideDose(
         occurrence: DoseOccurrence,
         status: DoseStatus,
         onResult: (DoseDecisionResult) -> Unit,
     ) {
         viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) {
-                container.doseDecisionUseCase(occurrence, status)
+            runCatching {
+                withContext(Dispatchers.IO) { container.doseDecisionUseCase(occurrence, status) }
+            }.onSuccess(onResult).onFailure { error ->
+                Log.e(TAG, "Dose decision failed; notification retained", error)
+                _error.value = R.string.error_decide_dose
             }
-            onResult(result)
         }
     }
 
@@ -218,10 +264,6 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    previousPlan?.times?.forEach {
-                        container.scheduler.cancel(it.id)
-                        container.notifications.cancelReminder(it.id)
-                    }
                     var newlyStoredPhoto: String? = null
                     try {
                         val photoPath = when {
@@ -230,8 +272,15 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
                             else -> draft.existingPhotoPath
                         }
                         val result = container.repository.saveMedication(draft.copy(existingPhotoPath = photoPath))
+                        // Only a committed explicit schedule change may clear the old reminder.
+                        if (previousPlan != null && reminderPlanChanged(previousPlan, draft)) {
+                            previousPlan.times.forEach {
+                                container.scheduler.cancel(it.id)
+                                container.notifications.cancelReminder(it.id)
+                            }
+                        }
                         container.imageStore.delete(result.replacedPhotoPath)
-                        val scheduleResult = container.scheduler.scheduleAll()
+                        val scheduleResult = container.restoreReminders()
                         if (scheduleResult == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                             Log.i(TAG, "Saved medication reminder rebuild is waiting for exact-alarm access")
                         }
@@ -246,7 +295,7 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
             }.onFailure {
                 _error.value = R.string.error_save_medication
                 viewModelScope.launch(Dispatchers.IO) {
-                    runCatching { container.scheduler.scheduleAll() }
+                    runCatching { container.restoreReminders() }
                         .onSuccess { result ->
                             if (result == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                                 Log.i(TAG, "Retry reminder rebuild is waiting for exact-alarm access")
@@ -264,13 +313,13 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
+                    val photo = container.repository.deleteMedication(plan.medication.id)
                     plan.times.forEach {
                         container.scheduler.cancel(it.id)
                         container.notifications.cancelReminder(it.id)
                     }
-                    val photo = container.repository.deleteMedication(plan.medication.id)
                     container.imageStore.delete(photo)
-                    val scheduleResult = container.scheduler.scheduleAll()
+                    val scheduleResult = container.restoreReminders()
                     if (scheduleResult == ScheduleResult.WAITING_FOR_EXACT_ALARM_PERMISSION) {
                         Log.i(TAG, "Deleted medication reminder rebuild is waiting for exact-alarm access")
                     }
@@ -283,4 +332,13 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     private companion object {
         const val TAG = "MedicationViewModel"
     }
+}
+
+internal fun reminderPlanChanged(plan: MedicationPlan, draft: MedicationDraft): Boolean {
+    if (plan.medication.enabled != draft.enabled || plan.schedule.scheduleMode != draft.scheduleMode) return true
+    if (draft.scheduleMode == ScheduleMode.INTERVAL) return plan.schedule.intervalMinutes != draft.intervalMinutes ||
+        plan.schedule.anchorEpochMillis != draft.anchorEpochMillis
+    return plan.times.filter { it.enabled }.map { it.time }.sorted() != draft.times.distinct().sorted() ||
+        plan.schedule.weekdays != draft.weekdays || plan.schedule.timeZoneMode != draft.timeZoneMode ||
+        plan.schedule.manualZoneId != draft.manualZoneId
 }
