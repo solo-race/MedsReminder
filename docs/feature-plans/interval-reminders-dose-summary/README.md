@@ -294,7 +294,7 @@ review 使用新时间戳文件 `docs/review/YYYY-MM-DD-HHmm-sgt-<scope>.md`，�
 
 - 已解决环境故障：可选Gradle属性 `robolectricDependencyDir` 将Robolectric官方 `robolectric.dependency.dir` 传给测试JVM，直接读取现有API35 instrumented jar，无下载锁。使用Kotlin官方in-process编译属性避免只读home的daemon marker；未更改HOME、文件权限或网络限制。
 - 首次完整运行175项，171通过、4失败，无类初始化失败。三个入口用例只等待固定4帧，单独诊断重跑9项全通过；改为有上限等待可观察的绑定完成，保留期望断言。一个Home导航源码断言仍匹配旧位置参数，现按实际点击转发检查；未改变入口生产行为。
-- 最终无筛选完整运行：175项/31类，0失败、0错误、0跳过；真实Room v3→v4迁移与完整迁移链、同instant跨local-day去重、快照编辑、pending/通知/DataStore等用例均执行。lintDebug通过（0错误、19警告、1提示）；警告主要为既有API常量/target、依赖更新、复数文案、资源及风格建议，未发现本feature的实际阻塞问题。assembleDebug通过；最终命令36秒，59任务中7执行/52有效复用，测试与lint报告实际生成，APK打包在此前同源码版本运行生成后复用。
+- 最终无筛选完整运行：175项/31类，0失败、0错误、0跳过；分别执行的v2→v3迁移用例与含Room schema校验的v3→v4迁移用例、同instant跨local-day去重、快照编辑、pending/通知/DataStore等用例均通过；未测试v1→v4完整升级链。lintDebug通过（0错误、19警告、1提示）；警告主要为既有API常量/target、依赖更新、复数文案、资源及风格建议，未发现本feature的实际阻塞问题。assembleDebug通过；最终命令36秒，59任务中7执行/52有效复用，测试与lint报告实际生成，APK打包在此前同源码版本运行生成后复用。
 - APK：`app/build/outputs/apk/debug/app-debug.apk`，20,406,695字节，SHA-256 `a917504b024225afc73f2b294a295d33ed1185f6c34aa7fb6717e8aab5c3e0b9`；apksigner验签通过，Android Debug证书，beta.5/code 5。debug验收包，未安装、未发布。
 - 未执行：adb无设备，真实Compose/NavHost点击/返回/旋转、PRE/DUE声音/锁屏/后台恢复/ColorOS、设备保留数据覆盖升级均待本地。仓库无正式签名文件，本轮未运行assembleRelease或生成正式签名包。没有把源码/自动化测试当作这些设备检查通过。
 
