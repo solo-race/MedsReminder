@@ -2,6 +2,7 @@ package com.example.medicationreminder.data.repository
 
 import androidx.room.Room
 import com.example.medicationreminder.data.local.MedicationDatabase
+import com.example.medicationreminder.data.local.DoseEventEntity
 import com.example.medicationreminder.domain.model.DoseDecisionResult
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.MedicationDraft
@@ -155,6 +156,22 @@ class IntervalMedicationPersistenceTest {
         assertEquals(1, repository.pendingReminders().size)
         repository.decideDose(occurrence, DoseStatus.TAKEN)
         assertNull(repository.observeDoseHistory().first().single().doseAmountSnapshot)
+    }
+
+    @Test fun oldHistoryDoesNotAcquireCurrentMedicationDoseAfterEditing() = runBlocking {
+        val id = repository.saveMedication(draft()).medicationId
+        val dose = repository.activeScheduledDoses().single()
+        database.doseEventDao().insert(DoseEventEntity(medicationId = id, doseTimeId = dose.doseTimeId,
+            scheduledForEpochMillis = anchor.toEpochMilli(),
+            scheduledLocalEpochDay = anchor.atZone(ZoneId.of("UTC")).toLocalDate().toEpochDay(),
+            status = DoseStatus.TAKEN, actionedAtEpochMillis = System.currentTimeMillis()))
+        val before = repository.observeDoseHistory().first().single()
+        assertEquals("", before.dosageText)
+        assertNull(before.dosageTextSnapshot)
+        assertNull(before.doseAmountSnapshot)
+        repository.saveMedication(draft().copy(id = id, dosageText = "99 tablets now", doseAmount = "99"))
+        val after = repository.observeDoseHistory().first().single()
+        assertEquals(before, after)
     }
 
     private fun draft() = MedicationDraft(name = "Interval", dosageText = "original dose", note = "",

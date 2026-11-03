@@ -99,6 +99,7 @@ import androidx.navigation.navArgument
 import com.example.medicationreminder.R
 import com.example.medicationreminder.data.settings.AppLanguage
 import com.example.medicationreminder.domain.model.DoseEvent
+import com.example.medicationreminder.domain.model.retainedDoseHistory
 import com.example.medicationreminder.domain.model.MedicationDraft
 import com.example.medicationreminder.domain.model.ScheduleMode
 import com.example.medicationreminder.domain.model.scheduledDose
@@ -118,6 +119,7 @@ import kotlinx.coroutines.delay
 private object Routes {
     const val HOME = "home"
     const val HISTORY = "history"
+    const val HISTORY_SUMMARY = "history/summary"
     const val SETTINGS = "settings"
     const val DETAIL = "medication/{medicationId}"
     const val EDIT_NEW = "edit/new"
@@ -285,7 +287,11 @@ private fun MedicationAppContent(
                 currentRoute = Routes.HISTORY,
                 snackbarHost = { SnackbarHost(snackbarHost) },
                 onNavigate = { navController.navigate(it) },
-            ) { padding -> HistoryScreen(history, Modifier.padding(padding)) }
+            ) { padding -> HistoryScreen(history, Modifier.padding(padding),
+                onOpenSummary = { navController.navigate(Routes.HISTORY_SUMMARY) }) }
+        }
+        composable(Routes.HISTORY_SUMMARY) {
+            DoseSummaryScreen(history, onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS) {
             MainScaffold(
@@ -458,34 +464,42 @@ private fun MedicationCard(plan: MedicationPlan, now: Instant, occurrence: com.e
 }
 
 @Composable
-private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifier) {
+private fun HistoryScreen(history: List<DoseEvent>, modifier: Modifier = Modifier, onOpenSummary: () -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
-    if (history.isEmpty()) {
-        Box(modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
+    val clock by occurrenceClock(periodMillis = 60_000)
+    val retained = remember(history, clock) { retainedDoseHistory(history, Instant.now()) }
+    LazyColumn(modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Text(stringResource(R.string.dose_history_title), style = MaterialTheme.typography.headlineMedium)
+            OutlinedButton(onClick = onOpenSummary) { Text(stringResource(R.string.dose_summary_title)) }
+            Text(stringResource(R.string.history_retention_notice), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (retained.isEmpty()) item {
             Text(stringResource(R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    } else {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item { Text(stringResource(R.string.dose_history_title), style = MaterialTheme.typography.headlineMedium) }
-            items(history, key = { it.id }) { event ->
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(event.medicationName, fontWeight = FontWeight.Medium)
-                            Text(event.dosageText, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(formatInstant(event.scheduledFor, ZoneId.systemDefault(), locale), style = MaterialTheme.typography.bodySmall)
+        items(retained, key = { it.id }) { event ->
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(event.medicationName, fontWeight = FontWeight.Medium)
+                        Text(event.dosageTextSnapshot ?: stringResource(R.string.history_dose_unrecorded),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (event.doseAmountSnapshot != null && event.doseUnitSnapshot != null) {
+                            Text(stringResource(R.string.history_measured_dose, event.doseAmountSnapshot,
+                                doseUnitLabel(event.doseUnitSnapshot)), style = MaterialTheme.typography.bodySmall)
+                        } else if (event.dosageTextSnapshot != null) {
+                            Text(stringResource(R.string.history_amount_unrecorded), style = MaterialTheme.typography.bodySmall)
                         }
-                        AssistChip(
-                            onClick = {},
-                            label = {
-                                Text(stringResource(if (event.status.name == "TAKEN") R.string.status_taken else R.string.status_skipped))
-                            },
-                        )
+                        Text(formatInstant(event.scheduledFor, ZoneId.systemDefault(), locale), style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.history_actioned_at,
+                            formatInstant(event.actionedAt, ZoneId.systemDefault(), locale)), style = MaterialTheme.typography.bodySmall)
                     }
+                    AssistChip(onClick = {}, label = {
+                        Text(stringResource(if (event.status.name == "TAKEN") R.string.status_taken else R.string.status_skipped))
+                    })
                 }
             }
         }

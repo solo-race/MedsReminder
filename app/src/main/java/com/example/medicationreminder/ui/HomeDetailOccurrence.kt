@@ -39,11 +39,18 @@ internal suspend fun homeDetailOccurrence(
 
 /** Only presentation time ticks; occurrence selection and database access do not. */
 @androidx.compose.runtime.Composable
-internal fun occurrenceClock(): androidx.compose.runtime.State<Instant> {
+internal fun occurrenceClock(periodMillis: Long = 1_000): androidx.compose.runtime.State<Instant> {
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
-    return androidx.compose.runtime.produceState(Instant.now(), lifecycle) {
+    return androidx.compose.runtime.produceState(Instant.now(), lifecycle, periodMillis) {
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (true) { value = Instant.now(); kotlinx.coroutines.delay(1_000) }
+            while (true) {
+                val now = Instant.now()
+                value = now
+                val zone = java.time.ZoneId.systemDefault()
+                val midnight = now.atZone(zone).toLocalDate().plusDays(1).atStartOfDay(zone).toInstant()
+                val untilMidnight = java.time.Duration.between(now, midnight).toMillis().coerceAtLeast(1L)
+                kotlinx.coroutines.delay(minOf(periodMillis, untilMidnight))
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.medicationreminder.domain.model
 
+import java.math.BigDecimal
 import java.time.Duration
 import java.time.DayOfWeek
 import java.time.Instant
@@ -154,4 +155,57 @@ fun MedicationPlan.scheduledDose(doseTimeId: Long): ScheduledDose? {
         schedule.scheduleMode, schedule.intervalMinutes, schedule.anchorEpochMillis,
         medication.doseAmount, medication.doseUnit,
     )
+}
+
+
+val DOSE_HISTORY_RETENTION: Duration = Duration.ofDays(30)
+
+enum class DoseSummaryRange { TODAY, LAST_7_DAYS, LAST_30_DAYS }
+
+data class DoseUnitSummary(
+    val unit: String?,
+    /** Null means no measured Taken event; unknown doses are never presented as zero. */
+    val takenAmount: BigDecimal?,
+    val takenCount: Int,
+    val skippedCount: Int,
+    val unknownTakenCount: Int,
+)
+
+data class MedicationDoseSummary(
+    val medicationId: Long,
+    val medicationName: String,
+    val units: List<DoseUnitSummary>,
+) {
+    val takenCount: Int get() = units.sumOf { it.takenCount }
+    val skippedCount: Int get() = units.sumOf { it.skippedCount }
+    val unknownTakenCount: Int get() = units.sumOf { it.unknownTakenCount }
+}
+
+fun retainedDoseHistory(events: List<DoseEvent>, now: Instant): List<DoseEvent> {
+    val cutoff = now.minus(DOSE_HISTORY_RETENTION)
+    return events.filter { !it.actionedAt.isBefore(cutoff) && !it.actionedAt.isAfter(now) }
+}
+
+fun summarizeDoses(events: List<DoseEvent>, range: DoseSummaryRange, now: Instant,
+    zoneId: ZoneId = ZoneId.systemDefault()): List<MedicationDoseSummary> {
+    val since = when (range) {
+        DoseSummaryRange.TODAY -> now.atZone(zoneId).toLocalDate().atStartOfDay(zoneId).toInstant()
+        DoseSummaryRange.LAST_7_DAYS -> now.minus(Duration.ofDays(7))
+        DoseSummaryRange.LAST_30_DAYS -> now.minus(DOSE_HISTORY_RETENTION)
+    }
+    return retainedDoseHistory(events, now).filter { !it.actionedAt.isBefore(since) }
+        .groupBy { it.medicationId }.map { (medicationId, medicationEvents) ->
+            val units = medicationEvents.groupBy { it.doseUnitSnapshot }.map { (unit, unitEvents) ->
+                val taken = unitEvents.filter { it.status == DoseStatus.TAKEN }
+                val measured = if (unit == null) emptyList() else taken.mapNotNull { event ->
+                    event.doseAmountSnapshot?.let(::BigDecimal)
+                }
+                DoseUnitSummary(unit = unit,
+                    takenAmount = if (measured.isEmpty()) null else measured.fold(BigDecimal.ZERO, BigDecimal::add),
+                    takenCount = taken.size,
+                    skippedCount = unitEvents.count { it.status == DoseStatus.SKIPPED },
+                    unknownTakenCount = taken.size - measured.size)
+            }.sortedWith(compareBy<DoseUnitSummary> { it.unit == null }.thenBy { it.unit })
+            MedicationDoseSummary(medicationId, medicationEvents.first().medicationName, units)
+        }.sortedWith(compareBy<MedicationDoseSummary> { it.medicationName }.thenBy { it.medicationId })
 }

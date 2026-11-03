@@ -139,4 +139,19 @@
     <string name="interval_schedule_description">每隔 %1$d 分钟，起点：</string>
     <string name="current_dose">当前服药：%1$s</string>
     <string name="error_save_settings">未能保存设置，请重试。</string>
+    <string name="dose_summary_title">剂量汇总</string>
+    <string name="summary_today">今天</string>
+    <string name="summary_last_seven">近7天</string>
+    <string name="summary_last_thirty">近30天</string>
+    <string name="summary_time_basis">按确认时间统计。今天从设备时区零点起；近7天和近30天分别回溯7×24小时和30×24小时。</string>
+    <string name="history_retention_notice">仅显示近30天内保留的记录；删除药物会删除其记录及汇总。</string>
+    <string name="summary_counts">已服：%1$d次 · 跳过：%2$d次</string>
+    <string name="summary_empty">此时间范围内没有保留记录，暂无可统计的服用量。</string>
+    <string name="summary_missing_doses">%1$d次已服记录缺少剂量，未计入剂量合计。</string>
+    <string name="summary_unit_unknown">剂量单位未记录</string>
+    <string name="summary_measured_amount">已记录的服用量：%1$s %2$s</string>
+    <string name="history_dose_unrecorded">历史剂量未记录</string>
+    <string name="history_amount_unrecorded">结构化剂量未记录</string>
+    <string name="history_measured_dose">每次剂量：%1$s %2$s</string>
+    <string name="history_actioned_at">确认时间：%1$s</string>
 </resources>

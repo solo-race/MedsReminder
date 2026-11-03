@@ -23,6 +23,7 @@ import com.example.medicationreminder.domain.model.ReminderStage
 import com.example.medicationreminder.domain.model.PendingReminder
 import com.example.medicationreminder.domain.model.scheduledDose
 import com.example.medicationreminder.domain.model.zoneId
+import com.example.medicationreminder.domain.model.DOSE_HISTORY_RETENTION
 import java.math.BigDecimal
 import java.time.DayOfWeek
 import java.time.Instant
@@ -152,7 +153,7 @@ internal class RoomMedicationRepository(
                 DoseEvent(
                     id = it.id,
                     medicationName = it.medicationName,
-                    dosageText = it.dosageTextSnapshot ?: it.dosageText,
+                    dosageText = it.dosageTextSnapshot.orEmpty(),
                     scheduledFor = Instant.ofEpochMilli(it.scheduledForEpochMillis),
                     status = it.status,
                     actionedAt = Instant.ofEpochMilli(it.actionedAtEpochMillis),
@@ -353,7 +354,7 @@ internal class RoomMedicationRepository(
                 ),
             )
             pendingDao.delete(occurrence.doseTimeId, occurrence.scheduledFor.toEpochMilli())
-            doseEventDao.deleteOlderThan(now - HISTORY_RETENTION_MILLIS)
+            doseEventDao.deleteOlderThan(now - DOSE_HISTORY_RETENTION.toMillis())
             DoseDecisionResult.Recorded(status)
         }
 
@@ -414,9 +415,6 @@ internal class RoomMedicationRepository(
         scheduleDao.getAll().filter { it.timeZoneMode == TimeZoneMode.MANUAL }.map { it.toDomain() }
     }
 
-    private companion object {
-        const val HISTORY_RETENTION_MILLIS = 30L * 24 * 60 * 60 * 1_000
-    }
 }
 
 private fun MedicationEntity.toDomain() = Medication(id, name, dosageText, note, photoPath, enabled, alias, doseAmount, doseUnit)

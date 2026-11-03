@@ -139,4 +139,19 @@
     <string name="interval_schedule_description">Every %1$d minutes from:</string>
     <string name="current_dose">Current dose: %1$s</string>
     <string name="error_save_settings">Could not save this setting. Please try again.</string>
+    <string name="dose_summary_title">Dose summary</string>
+    <string name="summary_today">Today</string>
+    <string name="summary_last_seven">Last 7 days</string>
+    <string name="summary_last_thirty">Last 30 days</string>
+    <string name="summary_time_basis">Statistics use confirmation time. Today starts at device-local midnight; 7 and 30 days look back 7×24 and 30×24 hours.</string>
+    <string name="history_retention_notice">Only retained records from the last 30 days are shown. Deleting a medication deletes its records and summary.</string>
+    <string name="summary_counts">Taken: %1$d · Skipped: %2$d</string>
+    <string name="summary_empty">No retained records in this period. No dose amount is available.</string>
+    <string name="summary_missing_doses">%1$d taken records have no measured dose and are excluded from amount totals.</string>
+    <string name="summary_unit_unknown">Dose unit not recorded</string>
+    <string name="summary_measured_amount">Measured amount taken: %1$s %2$s</string>
+    <string name="history_dose_unrecorded">Historical dose not recorded</string>
+    <string name="history_amount_unrecorded">Measured dose not recorded</string>
+    <string name="history_measured_dose">Dose: %1$s %2$s</string>
+    <string name="history_actioned_at">Confirmed: %1$s</string>
 </resources>

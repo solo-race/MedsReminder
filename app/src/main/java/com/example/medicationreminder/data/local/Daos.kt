@@ -75,7 +75,6 @@ interface DoseTimeDao {
 data class DoseEventRow(
     val id: Long,
     val medicationName: String,
-    val dosageText: String,
     val scheduledForEpochMillis: Long,
     val status: com.example.medicationreminder.domain.model.DoseStatus,
     val actionedAtEpochMillis: Long,
@@ -89,7 +88,7 @@ data class DoseEventRow(
 interface DoseEventDao {
     @Query(
         """
-        SELECT e.id, e.medicationId, m.name AS medicationName, m.dosageText AS dosageText,
+        SELECT e.id, e.medicationId, m.name AS medicationName,
                e.doseAmountSnapshot, e.doseUnitSnapshot, e.dosageTextSnapshot,
                e.scheduledForEpochMillis, e.status, e.actionedAtEpochMillis
         FROM dose_events e
