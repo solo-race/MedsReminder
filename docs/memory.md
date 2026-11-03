@@ -96,3 +96,8 @@ Feature branch `codex/feature-medication-detail-dose-actions` @ `288d669`, debug
 - Planned tests not yet written: Room, photo store, repository, scheduler DST/zone-change cases, Compose UI/instrumented.
 - Lint: 16 non-blocking warnings to review; plan AGP 10 migration (external Kotlin / legacy DSL settings), add Android 12 data-extraction rules if backup behavior changes, raise `targetSdk` only after device testing.
 - Android Studio project sync still unconfirmed end-to-end.
+
+
+## 2026-10-24 — Reconstructed autostart / Home pending-dose correction
+
+Fresh work on `codex/recover-autostart-pending-dose` after the earlier VM artifact became unavailable. See `review/2026-10-24-2333-sgt-reconstructed-autostart-pending-dose.md`. Source/patch and byte inventory are retained outside the checkout in a versioned Library deliverable. Existing remote baseline is `4cd0f2f4`. Autostart no longer falls back to App Details; Home prefers today’s latest undecided due occurrence before future doses, without changing explicit notification identity or decision persistence. Fresh validation passed: 135 unit tests, debug APK assembly, full lint with zero errors / 22 warnings (including ten version-availability notices in unchanged build files; no added non-version warning versus base), independent source review. Four of five new integration cases fail on the untouched baseline and all five pass on the correction. Actual Compose/OEM/device acceptance remains pending. Old build hashes/test counts must not be reused. No push or device changes.

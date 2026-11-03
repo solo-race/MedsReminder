@@ -6,7 +6,7 @@ This directory is the canonical archive for repository architecture, feature, im
 
 **Always read the latest review before making architecture or feature implementation decisions.**
 
-Latest review: [`2026-09-21-0159-sgt-cold-process-alarm-verification.md`](2026-09-21-0159-sgt-cold-process-alarm-verification.md)
+Latest review: [`2026-10-24-2333-sgt-reconstructed-autostart-pending-dose.md`](2026-10-24-2333-sgt-reconstructed-autostart-pending-dose.md)
 
 The `Latest review` pointer above is authoritative. Every new review must update this pointer in the same change that adds the review document.
 
@@ -24,6 +24,7 @@ The `Latest review` pointer above is authoritative. Every new review must update
 
 | Review time | Scope | Branch / base | Disposition |
 | --- | --- | --- | --- |
+| 2026-10-24 23:33 SGT | Reconstructed autostart navigation and Home pending-occurrence selection | `codex/recover-autostart-pending-dose`, base `4cd0f2f4` | 135 tests and debug build PASS; full lint 0 errors; baseline reproduction confirmed; device acceptance pending |
 | 2026-09-21 01:59 SGT | Cold-process real-alarm delivery, ColorOS autostart control, cold rebuild and data preservation | `codex/feature-medication-detail-dose-actions` @ `75b84bb` plus fingerprinted dirty worktree | Baseline OEM_BLOCKED; autostart-enabled control PASS; F/G BLOCKED; verification only, no App defect established |
 | 2026-09-14 00:15 SGT | Device smoke verification — reminder entry warm delivery (foreground, background, real notification tap, rotation, data preservation) on PLB110 / ColorOS | `codex/feature-medication-detail-dose-actions` @ `0caed66` (on `5e28a09`) | PASS — blocking reminder-entry finding resolved and device-verified |
 | 2026-09-13 23:40 SGT | Reminder entry warm-delivery correction — `onNewIntent` ingress, value-keyed dedup, recreation retention, runtime warm-path coverage | `codex/feature-medication-detail-dose-actions` @ `5e28a09` (on `175b1ec`) | Fix implemented; 87 unit tests green, lint 0 errors; device smoke scenarios 13–14 still pending before merge |

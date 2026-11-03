@@ -10,3 +10,5 @@ app/build/
 
 # ChatGPT repo cache
 .chatgpt/
+.codex/
+.codex/*
