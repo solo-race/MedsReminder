@@ -17,8 +17,8 @@ android {
         applicationId = "com.example.medicationreminder"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.0-beta.4"
+        versionCode = 5
+        versionName = "1.0.0-beta.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -55,6 +55,12 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        // Optional pre-cached Robolectric SDK directory for offline/read-only-home environments.
+        unitTests.all { test ->
+            providers.gradleProperty("robolectricDependencyDir").orNull?.let { sdkDirectory ->
+                test.systemProperty("robolectric.dependency.dir", sdkDirectory)
+            }
+        }
     }
 
     compileOptions {

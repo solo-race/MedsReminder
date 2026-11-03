@@ -1,6 +1,6 @@
 # 周期间隔提醒与剂量汇总 — 发布说明草稿
 
-当前为 feature 分支实施说明，尚未发布。P1/P2 已收到主控转达的独立审阅 PASS，P3 已交付待审；P4 完整验证、版本及签名包准备尚未完成。
+当前为 `1.0.0-beta.5` / code 5 的 feature 分支实施说明，尚未发布。P1/P2/P3 已收到主控转达的独立审阅 PASS；P4 自动化验证及debug版本准备完成，待最终独立审阅。实机验收及正式签名包仍待本地执行。
 
 ## 本分支实现的功能
 
@@ -18,8 +18,8 @@
 
 ## 验证与交付边界
 
-针对性JVM回归、源码编译和debug构建证据记录在 [`../../memory.md`](../../memory.md)。Room迁移/仓储/通知/DataStore集成、真实导航/Compose交互、声音、锁屏及ColorOS恢复场景仍有未运行项；不能将编译或纯函数测试当作实机通过。
+完整175项测试（31类，0失败/错误/跳过）、lintDebug（0错误、19警告、1提示）及assembleDebug通过；包含真实Room迁移/仓储、通知/DataStore和汇总回归。命令、首轮测试失败及修正记录在 [`../../memory.md`](../../memory.md)。实际设备导航/Compose交互、声音、锁屏、ColorOS后台恢复及保留数据覆盖升级仍未执行；自动化测试不代表实机通过。[本地最小验证步骤](local-validation.md)提供构建及设备操作流程。
 
 普通应用无法绕过强制停止、撤回通知权限或厂商自启动限制；旧版本未落库通知也不承诺跨重启无损恢复。本分支未安装到设备或修改真实用药数据。
 
-当前APK仍为验证用debug包，沿用beta.4/code 4，不代表新版本已发布。P4将按实际基线递增版本并明确签名方式；合并、tag和GitHub release仍需用户另行决定。
+当前APK为beta.5/code 5的debug验收包，已通过apksigner验签；路径为 `app/build/outputs/apk/debug/app-debug.apk`。正式签名材料不可用，未运行release构建或生成正式签名包；合并、tag和GitHub release仍需用户另行决定。

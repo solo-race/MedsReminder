@@ -39,9 +39,10 @@ class MainActivityReminderEntryTest {
     fun coldLaunchBindsTheReminderOccurrence() {
         val controller = launchActivity(reminderIntent(medicationId = 4, doseTimeId = 13))
         val viewModel = viewModelOf(controller)
-        idleFrames()
+        awaitOpened(viewModel, occurrence(medicationId = 4, doseTimeId = 13))
 
-        assertEquals(occurrence(medicationId = 4, doseTimeId = 13), viewModel.reminderOccurrence.value)
+        assertEquals("Pending entry=${viewModel.reminderEntry.value}; lifecycle=${controller.get().lifecycle.currentState}",
+            occurrence(medicationId = 4, doseTimeId = 13), viewModel.reminderOccurrence.value)
         assertNull(viewModel.reminderEntry.value)
     }
 
@@ -53,9 +54,10 @@ class MainActivityReminderEntryTest {
         assertNull(viewModel.reminderOccurrence.value)
 
         controller.newIntent(reminderIntent(medicationId = 4, doseTimeId = 13))
-        idleFrames()
+        awaitOpened(viewModel, occurrence(medicationId = 4, doseTimeId = 13))
 
-        assertEquals(occurrence(medicationId = 4, doseTimeId = 13), viewModel.reminderOccurrence.value)
+        assertEquals("Pending entry=${viewModel.reminderEntry.value}; lifecycle=${controller.get().lifecycle.currentState}",
+            occurrence(medicationId = 4, doseTimeId = 13), viewModel.reminderOccurrence.value)
         assertNull(viewModel.reminderEntry.value)
     }
 
@@ -63,10 +65,10 @@ class MainActivityReminderEntryTest {
     fun secondReminderRebindsDetailToItsOwnOccurrence() {
         val controller = launchActivity(reminderIntent(medicationId = 4, doseTimeId = 13))
         val viewModel = viewModelOf(controller)
-        idleFrames()
+        awaitOpened(viewModel, occurrence(medicationId = 4, doseTimeId = 13))
 
         controller.newIntent(reminderIntent(medicationId = 7, doseTimeId = 21))
-        idleFrames()
+        awaitOpened(viewModel, occurrence(medicationId = 7, doseTimeId = 21))
 
         assertEquals(occurrence(medicationId = 7, doseTimeId = 21), viewModel.reminderOccurrence.value)
     }
@@ -74,13 +76,14 @@ class MainActivityReminderEntryTest {
     @Test
     fun recreatingTheActivityKeepsTheBoundOccurrenceWithoutReplayingTheDelivery() {
         val controller = launchActivity(reminderIntent(medicationId = 4, doseTimeId = 13))
-        idleFrames()
+        awaitOpened(viewModelOf(controller), occurrence(medicationId = 4, doseTimeId = 13))
 
         controller.recreate()
         val viewModel = viewModelOf(controller)
-        idleFrames()
+        awaitOpened(viewModel, occurrence(medicationId = 4, doseTimeId = 13))
 
-        assertEquals(occurrence(medicationId = 4, doseTimeId = 13), viewModel.reminderOccurrence.value)
+        assertEquals("Pending entry=${viewModel.reminderEntry.value}; lifecycle=${controller.get().lifecycle.currentState}",
+            occurrence(medicationId = 4, doseTimeId = 13), viewModel.reminderOccurrence.value)
         assertNull(viewModel.reminderEntry.value)
     }
 
@@ -168,6 +171,16 @@ class MainActivityReminderEntryTest {
 
     private fun viewModel(): MedicationViewModel =
         MedicationViewModel(RuntimeEnvironment.getApplication())
+
+    /** Wait for the observable navigation effect, not an assumed fixed four-frame startup budget. */
+    private fun awaitOpened(viewModel: MedicationViewModel, expected: DoseOccurrence) {
+        val looper = shadowOf(Looper.getMainLooper())
+        repeat(120) {
+            looper.idleFor(Duration.ofMillis(16))
+            if (viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null) return
+        }
+        // The calling assertions retain the real expected result and give the pending-entry diagnostic.
+    }
 
     /** Lets pending recommendations and the Compose frame-driven effect run to completion. */
     private fun idleFrames() {

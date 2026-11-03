@@ -19,7 +19,7 @@ class MedicationDetailNavigationContractTest {
     fun homeCardRoutesToDetailRatherThanEditor() {
         assertTrue(appSource.contains("onOpenDetail = { medicationId ->"))
         assertTrue(appSource.contains("navController.navigate(Routes.detail(medicationId))"))
-        assertTrue(appSource.contains("MedicationCard(plan, now, onOpenDetail = onOpenDetail)"))
+        assertTrue(appSource.contains("clickable { onOpenDetail(plan.medication.id) }"))
     }
 
     @Test
