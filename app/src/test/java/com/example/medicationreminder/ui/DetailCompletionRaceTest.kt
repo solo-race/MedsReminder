@@ -1,6 +1,8 @@
 package com.example.medicationreminder.ui
 
 import com.example.medicationreminder.domain.model.DoseOccurrence
+import com.example.medicationreminder.domain.model.DoseDecisionResult
+import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.domain.model.Medication
 import com.example.medicationreminder.domain.model.MedicationPlan
 import com.example.medicationreminder.domain.model.MedicationSchedule
@@ -15,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DetailCompletionRaceTest {
@@ -31,13 +34,14 @@ class DetailCompletionRaceTest {
             val bound = MutableStateFlow<DoseOccurrence?>(morning)
             val queued = MutableStateFlow<ReminderEntry?>(null)
             val originalKey = detailDoseStateKey(plan, morning)
+            val requestContext = ReminderContext(bound.value, queued.value)
             val completed = CompletableDeferred<Unit>()
             var advances = 0
             val job = launch(start = CoroutineStart.UNDISPATCHED) {
                 completed.await()
                 // Composition may still expose the 08:00 key; live VM state must guard this gap.
                 if (detailCompletionIsCurrent(originalKey, morning, originalKey, morning) &&
-                    reminderContextMatches(morning, bound.value, queued.value)) {
+                    reminderContextMatches(requestContext, bound.value, queued.value)) {
                     if (clearReminderBindingIfCurrent(morning, bound, queued)) advances++
                 }
             }
@@ -58,12 +62,13 @@ class DetailCompletionRaceTest {
         var visible: DoseOccurrence? = morning
         val bound = MutableStateFlow<DoseOccurrence?>(null)
         val queued = MutableStateFlow<ReminderEntry?>(null)
+        val requestContext = ReminderContext(bound.value, queued.value)
         val loaded = CompletableDeferred<DoseOccurrence?>()
         var applications = 0
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
             loadNextOccurrenceIfCurrent({ loaded.await() }, isCurrent = {
                 detailCompletionIsCurrent(requestedKey, morning, currentKey, visible) &&
-                    reminderContextMatches(null, bound.value, queued.value)
+                    reminderContextMatches(requestContext, bound.value, queued.value)
             }) { visible = it; applications++ }
         }
         bound.value = evening
@@ -81,11 +86,12 @@ class DetailCompletionRaceTest {
         var visible: DoseOccurrence? = morning
         val bound = MutableStateFlow<DoseOccurrence?>(null)
         val queued = MutableStateFlow<ReminderEntry?>(null)
+        val requestContext = ReminderContext(bound.value, queued.value)
         val loaded = CompletableDeferred<DoseOccurrence?>()
         val job = launch(start = CoroutineStart.UNDISPATCHED) {
             loadNextOccurrenceIfCurrent({ loaded.await() }, isCurrent = {
                 detailCompletionIsCurrent(key, morning, key, visible) &&
-                    reminderContextMatches(null, bound.value, queued.value)
+                    reminderContextMatches(requestContext, bound.value, queued.value)
             }) { visible = it }
         }
         queued.value = ReminderEntry(evening.medicationId, evening)
@@ -93,6 +99,42 @@ class DetailCompletionRaceTest {
         job.join()
         assertEquals(morning, visible)
         assertEquals(evening, queued.value?.occurrence)
+    }
+
+    @Test fun returnFromOtherMedicationNotificationAcceptsOrdinaryDetailTakenAndSkipped() = runBlocking {
+        for (status in listOf(DoseStatus.TAKEN, DoseStatus.SKIPPED)) {
+            // A Detail -> A Edit -> B notification Detail -> Back -> Back -> A Detail.
+            // Navigation pops the pages; the consumed global binding still belongs to B.
+            val otherMedication = evening.copy(medicationId = 2, doseTimeId = 30)
+            val bound = MutableStateFlow<DoseOccurrence?>(otherMedication)
+            val queued = MutableStateFlow<ReminderEntry?>(null)
+            val key = detailDoseStateKey(plan, bound.value?.takeIf { it.medicationId == plan.medication.id })
+            assertEquals(null, key.explicitOccurrence)
+            assertFalse(key.explicitOccurrence == bound.value) // The previous guard rejected this valid state.
+            val requestContext = ReminderContext(bound.value, queued.value)
+            var visible: DoseOccurrence? = morning
+            var accepted: DoseDecisionResult? = null
+            val decision = CompletableDeferred<DoseDecisionResult>()
+            val next = CompletableDeferred<DoseOccurrence?>()
+            val job = launch(start = CoroutineStart.UNDISPATCHED) {
+                val result = decision.await()
+                if (detailCompletionIsCurrent(key, morning, key, visible) &&
+                    reminderContextMatches(requestContext, bound.value, queued.value)) {
+                    accepted = result
+                    loadNextOccurrenceIfCurrent({ next.await() }, isCurrent = {
+                        detailCompletionIsCurrent(key, morning, key, visible) &&
+                            reminderContextMatches(requestContext, bound.value, queued.value)
+                    }) { visible = it }
+                }
+            }
+            decision.complete(DoseDecisionResult.Recorded(status))
+            next.complete(noon)
+            job.join()
+            assertEquals(DoseDecisionResult.Recorded(status), accepted)
+            assertEquals(noon, visible)
+            assertEquals(otherMedication, bound.value)
+            assertTrue(reminderContextMatches(requestContext, bound.value, queued.value))
+        }
     }
 
     @Test fun unchangedInputStillAcceptsItsNextOccurrenceButRejectsAnOlderResultAfterward() = runBlocking {

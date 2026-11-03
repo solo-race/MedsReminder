@@ -135,10 +135,10 @@ internal fun MedicationDetailScreen(
     var state by remember(stateKey) { mutableStateOf<DetailDoseState?>(null) }
     val currentKey by rememberUpdatedState(stateKey)
     val currentOccurrence by rememberUpdatedState((state ?: initialState)?.occurrence)
-    val applyDecision: (DetailDoseState, DoseDecisionResult) -> Unit = decision@{ requestState, result ->
+    val applyDecision: (DetailDoseState, ReminderContext, DoseDecisionResult) -> Unit = decision@{ requestState, requestContext, result ->
         val requested = requestState.occurrence ?: return@decision
         if (!detailCompletionIsCurrent(stateKey, requested, currentKey, currentOccurrence) ||
-            !viewModel.isCurrentReminderContext(stateKey.explicitOccurrence)) return@decision
+            !viewModel.isCurrentReminderContext(requestContext)) return@decision
         state = when (result) {
             is DoseDecisionResult.Recorded -> requestState.copy(decided = true, decidedStatus = result.status)
             is DoseDecisionResult.AlreadyDecided -> requestState.copy(decided = true, decidedStatus = result.status)
@@ -151,7 +151,7 @@ internal fun MedicationDetailScreen(
             } else {
                 viewModel.loadNextOccurrence(requested.medicationId, isCurrent = {
                     detailCompletionIsCurrent(stateKey, requested, currentKey, currentOccurrence) &&
-                        viewModel.isCurrentReminderContext(null)
+                        viewModel.isCurrentReminderContext(requestContext)
                 }) { state = DetailDoseState(occurrence = it) }
             }
         }
@@ -268,15 +268,17 @@ internal fun MedicationDetailScreen(
                         Button(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
                             val currentState = doseState
                             val occurrence = currentState.occurrence ?: return@Button
+                            val requestContext = viewModel.reminderContext()
                             viewModel.decideDose(occurrence, DoseStatus.TAKEN) { result ->
-                                applyDecision(currentState, result)
+                                applyDecision(currentState, requestContext, result)
                             }
                         }) { Text(stringResource(R.string.detail_take_action), textAlign = TextAlign.Center) }
                         OutlinedButton(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
                             val currentState = doseState
                             val occurrence = currentState.occurrence ?: return@OutlinedButton
+                            val requestContext = viewModel.reminderContext()
                             viewModel.decideDose(occurrence, DoseStatus.SKIPPED) { result ->
-                                applyDecision(currentState, result)
+                                applyDecision(currentState, requestContext, result)
                             }
                         }) { Text(stringResource(R.string.detail_skip_action), textAlign = TextAlign.Center) }
                     }

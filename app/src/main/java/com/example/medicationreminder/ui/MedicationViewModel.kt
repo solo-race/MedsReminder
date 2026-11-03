@@ -167,7 +167,9 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
         return entry
     }
 
-    internal fun isCurrentReminderContext(expected: DoseOccurrence?): Boolean =
+    internal fun reminderContext(): ReminderContext = ReminderContext(_reminderOccurrence.value, _reminderEntry.value)
+
+    internal fun isCurrentReminderContext(expected: ReminderContext): Boolean =
         reminderContextMatches(expected, _reminderOccurrence.value, _reminderEntry.value)
 
     internal fun clearReminderOccurrenceIfCurrent(expected: DoseOccurrence?): Boolean =
@@ -352,12 +354,14 @@ internal fun reminderPlanChanged(plan: MedicationPlan, draft: MedicationDraft): 
         plan.schedule.manualZoneId != draft.manualZoneId
 }
 
-internal fun reminderContextMatches(expected: DoseOccurrence?, current: DoseOccurrence?, pending: ReminderEntry?): Boolean =
-    pending == null && current == expected
+internal data class ReminderContext(val boundOccurrence: DoseOccurrence?, val pendingEntry: ReminderEntry?)
+
+internal fun reminderContextMatches(expected: ReminderContext, current: DoseOccurrence?, pending: ReminderEntry?): Boolean =
+    expected == ReminderContext(current, pending)
 
 internal fun clearReminderBindingIfCurrent(expected: DoseOccurrence?, current: MutableStateFlow<DoseOccurrence?>,
     pending: StateFlow<ReminderEntry?>): Boolean =
-    reminderContextMatches(expected, current.value, pending.value) && current.compareAndSet(expected, null)
+    pending.value == null && current.compareAndSet(expected, null)
 
 internal suspend fun loadNextOccurrenceIfCurrent(load: suspend () -> DoseOccurrence?, isCurrent: () -> Boolean,
     onLoaded: (DoseOccurrence?) -> Unit) {
