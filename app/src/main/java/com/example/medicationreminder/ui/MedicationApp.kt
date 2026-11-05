@@ -763,7 +763,6 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     val times = remember(plan?.medication?.id) { mutableStateListOf<LocalTime>().apply { addAll(initialTimes) } }
     var name by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.name.orEmpty()) }
     var alias by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.alias.orEmpty()) }
-    var dosage by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.dosageText.orEmpty()) }
     var mode by remember(plan?.medication?.id) { mutableStateOf(plan?.schedule?.scheduleMode ?: ScheduleMode.FIXED_TIMES) }
     val initialAnchor = remember(plan?.medication?.id) { plan?.schedule?.anchorEpochMillis?.let {
         Instant.ofEpochMilli(it).atZone(plan.schedule.zoneId()).toLocalDateTime()
@@ -775,6 +774,8 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
     var intervalMins by remember(plan?.medication?.id) { mutableStateOf(((plan?.schedule?.intervalMinutes ?: 720) % 60).toString()) }
     var doseAmount by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.doseAmount.orEmpty()) }
     var doseUnit by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.doseUnit.orEmpty()) }
+    val legacyDosageText = plan?.medication?.takeIf { it.doseAmount == null && it.doseUnit == null }?.dosageText
+    val resolvedDose = resolveEditorDose(doseAmount, doseUnit, doseUnitLabel(doseUnit.trim()), legacyDosageText)
     var note by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.note.orEmpty()) }
     var enabled by remember(plan?.medication?.id) { mutableStateOf(plan?.medication?.enabled ?: true) }
     var weekdays by remember(plan?.medication?.id) { mutableStateOf(plan?.schedule?.weekdays ?: DayOfWeek.entries.toSet()) }
@@ -809,6 +810,11 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                 },
                 navigationIcon = { TextButton(onClick = onBack) { Text(stringResource(R.string.back)) } },
                 actions = { TextButton(onClick = {
+                    val dose = resolvedDose
+                    if (dose == null) {
+                        viewModel.invalidDoseInput()
+                        return@TextButton
+                    }
                     val interval = if (mode == ScheduleMode.INTERVAL) runCatching {
                         val hours = intervalHours.toLong()
                         val minutes = intervalMins.toLong()
@@ -828,7 +834,7 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                         draft = MedicationDraft(
                             id = plan?.medication?.id,
                             name = name,
-                            dosageText = dosage,
+                            dosageText = dose.dosageText,
                             note = note,
                             enabled = enabled,
                             weekdays = weekdays,
@@ -840,8 +846,8 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                             scheduleMode = mode,
                             intervalMinutes = interval,
                             anchorEpochMillis = anchorMillis,
-                            doseAmount = doseAmount.takeIf { it.isNotBlank() },
-                            doseUnit = doseUnit.takeIf { it.isNotBlank() },
+                            doseAmount = dose.amount,
+                            doseUnit = dose.unit,
                         ),
                         previousPlan = plan,
                         newImageUri = selectedPhotoUri,
@@ -877,13 +883,13 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                 )
             }
             item {
-                OutlinedTextField(
-                    dosage,
-                    { dosage = it },
-                    Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.amount_dosage)) },
-                    placeholder = { Text(stringResource(R.string.dosage_placeholder)) },
-                    singleLine = true,
+                MedicationDoseInput(
+                    amount = doseAmount,
+                    unit = doseUnit,
+                    resolvedDose = resolvedDose,
+                    hasLegacyDose = legacyDosageText != null,
+                    onAmountChange = { doseAmount = it },
+                    onUnitChange = { doseUnit = it },
                 )
             }
             item {
@@ -921,19 +927,6 @@ private fun EditMedicationScreen(plan: MedicationPlan?, viewModel: MedicationVie
                         label = { Text(stringResource(R.string.fixed_times_mode)) })
                     FilterChip(selected = mode == ScheduleMode.INTERVAL, onClick = { mode = ScheduleMode.INTERVAL },
                         label = { Text(stringResource(R.string.interval_mode)) })
-                }
-            }
-            item {
-                OutlinedTextField(doseAmount, { doseAmount = it }, label = { Text(stringResource(R.string.structured_dose_amount)) }, modifier = Modifier.fillMaxWidth())
-                val units = listOf("tablet" to stringResource(R.string.unit_tablet), "capsule" to stringResource(R.string.unit_capsule),
-                    "mg" to stringResource(R.string.unit_mg), "mL" to stringResource(R.string.unit_ml))
-                OutlinedTextField(units.firstOrNull { it.first == doseUnit }?.second ?: doseUnit,
-                    { value -> doseUnit = units.firstOrNull { it.second == value }?.first ?: value },
-                    label = { Text(stringResource(R.string.structured_dose_unit)) }, modifier = Modifier.fillMaxWidth())
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    units.forEach { (unit, label) ->
-                        FilterChip(selected = doseUnit == unit, onClick = { doseUnit = unit }, label = { Text(label) })
-                    }
                 }
             }
             if (mode == ScheduleMode.INTERVAL) item {
