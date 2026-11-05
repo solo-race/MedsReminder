@@ -41,21 +41,19 @@ Each feature has its own branch; keep branches focused on their named behavior a
 
 ## Verification
 
-For the interval-reminder feature, the user has directed the main assistant to pull the relevant commit into its own VM for subsequent builds and automated validation. Do not repeatedly attempt Android builds in the Codex cloud environment. The user later authorized an initial validation attempt and continuing static work when blocked; distinguish actual results from deferred VM/local checks. VM JDK/SDK readiness and results must be verified there; old reports, including the 135-test correction report, do not establish current feature verification. See the feature plan's validation section.
+Run Android verification on the Windows workstation, not repeatedly in the cloud environment. Gradle now builds in place in the repository, but `JAVA_HOME`/`GRADLE_USER_HOME` must still be set explicitly: with both empty the wrapper mis-creates its lock under `C:\.gradle`, and the temporary Gradle distribution (`...\Temp\CodexAndroidBuild\...`) no longer exists.
 
-P4 resolved the cloud Robolectric lock using its supported local dependency directory with an already cached SDK jar. The optional Gradle property `-ProbolectricDependencyDir=<directory>` forwards `robolectric.dependency.dir` to unit tests; ordinary runs retain the default resolver. The fresh full run passed all 175 tests, including Room/notification integration. See [local validation steps](docs/feature-plans/interval-reminders-dose-summary/local-validation.md) and `docs/memory.md` for exact commands, prior failures, and device/signing gaps. No permission or network-policy changes were made.
+The sandbox JVM's `user.home` is `C:\Users\CodexSandboxOffline`, so Robolectric's default resolver looks for the Android SDK jar outside the real `C:\Users\tiany\.m2` and then fails to download it. Point it at the cached artifact directory:
 
-The following command is a historical Windows workstation recipe, not the current VM's setup. Managed shells on that workstation may not expose `JAVA_HOME`/`GRADLE_USER_HOME`; with both empty, the wrapper can mis-create its lock under `C:\.gradle`, so set them explicitly. The temporary Gradle distribution (`...\Temp\CodexAndroidBuild\...`) no longer exists — invoke the wrapper through Java directly:
-
-```bash
-export JAVA_HOME='D:/AndroidStudio/jbr'
-export GRADLE_USER_HOME='C:/Users/tiany/.gradle'
-java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest assembleDebug lintDebug --no-daemon --offline --console=plain
+```powershell
+$env:JAVA_HOME = 'D:\AndroidStudio\jbr'
+$env:GRADLE_USER_HOME = 'C:\Users\tiany\.gradle'
+java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest assembleDebug lintDebug -ProbolectricDependencyDir=C:\Users\tiany\.m2\repository\org\robolectric\android-all-instrumented\15-robolectric-13954326-i7 --no-daemon --offline --console=plain
 ```
 
-(PowerShell equivalent: `$env:JAVA_HOME = 'D:\AndroidStudio\jbr'; $env:GRADLE_USER_HOME = 'C:\Users\tiany\.gradle'` then the same `java -cp ...` line.)
+The optional property `-ProbolectricDependencyDir=<directory>` forwards `robolectric.dependency.dir`; drop it once the default resolver finds the jar on its own. `--offline` matches this workstation's populated caches, and using the local Android/Gradle caches is user-approved.
 
-`--offline` matched that workstation's cached dependencies; it is not a claim about the assistant VM's caches. Using the local Android/Gradle caches is user-approved; do not re-ask for normal verification runs in the designated environment.
+Latest recorded run (2026-11-05, branch tip `a48eaca`): 183 tests pass across 33 suites, `assembleDebug` produces the debug APK, and `lintDebug` reports no errors. Device acceptance and formal release signing remain outstanding; earlier reports establish only their own scope.
 
 Known shell/tooling pitfalls (MSYS path mangling with adb, signature-mismatch installs, stale daemons, cache cleanup rules): `docs/operations.md`. Read it before running Gradle or adb in a new session.
 
