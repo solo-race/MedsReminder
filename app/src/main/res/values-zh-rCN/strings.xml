@@ -51,8 +51,11 @@
     <string name="medication_name">药物名称</string>
     <string name="alias_label">别名/编辑通知消息</string>
     <string name="alias_hint">提醒中将显示别名而非药物名称</string>
-    <string name="amount_dosage">用量/剂量</string>
-    <string name="dosage_placeholder">例如：1片或5毫升</string>
+    <string name="amount_dosage">用量</string>
+    <string name="dose_display_preview">显示用量：%1$s</string>
+    <string name="dose_input_hint">根据数值和单位自动生成显示文字。</string>
+    <string name="dose_legacy_hint">保留原有用量说明；填写数值和单位后将替换说明，并用于今后的剂量统计。</string>
+    <string name="error_dose_input">请输入大于0的用量数值和单位。</string>
     <string name="note_optional">备注（可选）</string>
     <string name="medication_photo">药物照片</string>
     <string name="add_photo">添加照片</string>
@@ -140,7 +143,7 @@
     <string name="interval_anchor">首次服药日期与时间</string>
     <string name="interval_hours">间隔小时</string>
     <string name="interval_minutes">间隔分钟</string>
-    <string name="structured_dose_amount">每次剂量数值（可选）</string>
+    <string name="structured_dose_amount">每次用量数值</string>
     <string name="structured_dose_unit">剂量单位（可自定义）</string>
     <string name="unit_tablet">片</string>
     <string name="unit_capsule">粒</string>

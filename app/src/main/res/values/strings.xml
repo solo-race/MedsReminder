@@ -51,8 +51,11 @@
     <string name="medication_name">Medication name</string>
     <string name="alias_label">Alias / edit notification text</string>
     <string name="alias_hint">Shown in reminders instead of the name</string>
-    <string name="amount_dosage">Amount / dosage</string>
-    <string name="dosage_placeholder">e.g. 1 tablet or 5 mL</string>
+    <string name="amount_dosage">Dose</string>
+    <string name="dose_display_preview">Displayed dose: %1$s</string>
+    <string name="dose_input_hint">The display text is generated from the amount and unit.</string>
+    <string name="dose_legacy_hint">Your existing dose text is kept. Enter an amount and unit to replace it and include future doses in totals.</string>
+    <string name="error_dose_input">Enter an amount greater than zero and a dose unit.</string>
     <string name="note_optional">Note (optional)</string>
     <string name="medication_photo">Medication photo</string>
     <string name="add_photo">Add photo</string>
@@ -140,7 +143,7 @@
     <string name="interval_anchor">First dose date and time</string>
     <string name="interval_hours">Interval hours</string>
     <string name="interval_minutes">Interval minutes</string>
-    <string name="structured_dose_amount">Amount per dose (optional)</string>
+    <string name="structured_dose_amount">Amount per dose</string>
     <string name="structured_dose_unit">Dose unit (or enter a custom unit)</string>
     <string name="unit_tablet">tablet</string>
     <string name="unit_capsule">capsule</string>

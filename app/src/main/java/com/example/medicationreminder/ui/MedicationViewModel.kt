@@ -65,6 +65,8 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
 
     fun invalidScheduleInput() { _error.value = R.string.error_interval_input }
 
+    fun invalidDoseInput() { _error.value = R.string.error_dose_input }
+
     val history = container.repository.observeDoseHistory().stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
