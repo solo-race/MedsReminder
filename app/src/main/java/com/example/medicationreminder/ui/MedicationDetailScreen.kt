@@ -6,6 +6,7 @@
 package com.example.medicationreminder.ui
 
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -21,6 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.medicationreminder.R
 import com.example.medicationreminder.domain.model.DoseDecisionResult
 import com.example.medicationreminder.domain.model.DoseOccurrence
@@ -99,6 +103,47 @@ internal fun isOccurrenceCompatibleWithPlan(
     return plan.scheduledDose(occurrence.doseTimeId)?.matchesOccurrence(occurrence, persistedPending) == true
 }
 
+internal enum class DoseConfirmationPhase { EARLY, DUE }
+
+internal fun doseConfirmationPhase(occurrence: DoseOccurrence, now: Instant): DoseConfirmationPhase =
+    if (now.isBefore(occurrence.scheduledFor)) DoseConfirmationPhase.EARLY else DoseConfirmationPhase.DUE
+
+/** Presentation state derived from the loaded dose data and the ticking display clock. */
+internal sealed interface DetailDosePresentation {
+    data object Loading : DetailDosePresentation
+    data object Stale : DetailDosePresentation
+    data object Unavailable : DetailDosePresentation
+    data class Decided(val status: DoseStatus?) : DetailDosePresentation
+    data class Actionable(
+        val occurrence: DoseOccurrence,
+        val confirmation: DoseConfirmationPhase,
+    ) : DetailDosePresentation
+}
+
+internal fun detailDosePresentation(state: DetailDoseState?, now: Instant): DetailDosePresentation = when {
+    state == null -> DetailDosePresentation.Loading
+    state.stale -> DetailDosePresentation.Stale
+    state.occurrence == null -> DetailDosePresentation.Unavailable
+    state.decided -> DetailDosePresentation.Decided(state.decidedStatus)
+    else -> DetailDosePresentation.Actionable(
+        occurrence = state.occurrence,
+        confirmation = doseConfirmationPhase(state.occurrence, now),
+    )
+}
+
+internal enum class DetailDoseHeading { REMINDER, UNCONFIRMED, NEXT }
+
+/** Heading keeps its existing rule, including decided or stale occurrences in the past. */
+internal fun detailDoseHeading(
+    explicitOccurrence: DoseOccurrence?,
+    occurrence: DoseOccurrence?,
+    now: Instant,
+): DetailDoseHeading = when {
+    explicitOccurrence != null -> DetailDoseHeading.REMINDER
+    occurrence != null && !now.isBefore(occurrence.scheduledFor) -> DetailDoseHeading.UNCONFIRMED
+    else -> DetailDoseHeading.NEXT
+}
+
 @Composable
 internal fun MedicationDetailScreen(
     plan: MedicationPlan?,
@@ -111,7 +156,8 @@ internal fun MedicationDetailScreen(
     val locale = LocalConfiguration.current.locales[0]
     val displayNow by occurrenceClock()
     val stateKey = detailDoseStateKey(plan, explicitOccurrence)
-    val now = remember(stateKey) { Instant.now() }
+    // Selection uses the load-time clock; every visible time-dependent element uses displayNow.
+    val loadNow = remember(stateKey) { Instant.now() }
     val initialLoad by produceState<LoadedDetailDoseState?>(initialValue = null, stateKey) {
         val loadedState = when {
             plan == null -> DetailDoseState(stale = true)
@@ -126,7 +172,7 @@ internal fun MedicationDetailScreen(
                 }
             }
             else -> DetailDoseState(
-                occurrence = viewModel.nextActionableOccurrence(plan.medication.id, now),
+                occurrence = viewModel.nextActionableOccurrence(plan.medication.id, loadNow),
             )
         }
         value = LoadedDetailDoseState(stateKey, loadedState)
@@ -144,6 +190,11 @@ internal fun MedicationDetailScreen(
             is DoseDecisionResult.AlreadyDecided -> requestState.copy(decided = true, decidedStatus = result.status)
             DoseDecisionResult.StaleOccurrence -> requestState.copy(stale = true)
         }
+        // A decision that arrived from elsewhere must close, not re-arm, an early confirmation.
+        val pending = viewModel.pendingEarlyDecision.value
+        if (pending?.occurrence == requested && result !is DoseDecisionResult.Recorded) {
+            viewModel.clearPendingEarlyDecision(pending)
+        }
         if (result != DoseDecisionResult.StaleOccurrence) {
             if (stateKey.explicitOccurrence != null) {
                 // Changing this binding creates a new key; the existing keyed producer loads its next dose.
@@ -158,6 +209,24 @@ internal fun MedicationDetailScreen(
     }
     LaunchedEffect(stateKey, initialLoad) {
         if (initialState != null) state = initialState
+    }
+
+    val doseState = state ?: initialState
+    val presentation = detailDosePresentation(doseState, displayNow)
+    val pendingEarlyDecision by viewModel.pendingEarlyDecision.collectAsStateWithLifecycle()
+
+    // Keep a one-shot PRE request only while the occurrence Detail is showing is still actionable.
+    // A missing plan is still loading or deleted; do not drop the request before lookup finishes.
+    LaunchedEffect(stateKey, doseState, pendingEarlyDecision) {
+        val pending = pendingEarlyDecision ?: return@LaunchedEffect
+        if (plan == null || doseState == null) return@LaunchedEffect
+        val boundToPending = stateKey.explicitOccurrence == pending.occurrence ||
+            (stateKey.explicitOccurrence == null && doseState.occurrence == pending.occurrence)
+        if (!boundToPending) return@LaunchedEffect
+        val current = detailDosePresentation(doseState, Instant.now())
+        if (current !is DetailDosePresentation.Actionable || current.occurrence != pending.occurrence) {
+            viewModel.clearPendingEarlyDecision(pending)
+        }
     }
 
     Scaffold(
@@ -187,8 +256,6 @@ internal fun MedicationDetailScreen(
             return@Scaffold
         }
 
-        val doseState = state ?: initialState
-        val actionable = doseState?.occurrence != null && doseState.stale.not() && doseState.decided.not()
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
@@ -228,10 +295,10 @@ internal fun MedicationDetailScreen(
             item {
                 DetailSection {
                     val occurrence = doseState?.occurrence
-                    Text(stringResource(when {
-                        explicitOccurrence != null -> R.string.detail_reminder_heading
-                        occurrence != null && !occurrence.scheduledFor.isAfter(now) -> R.string.detail_pending_heading
-                        else -> R.string.detail_next_heading
+                    Text(stringResource(when (detailDoseHeading(explicitOccurrence, occurrence, displayNow)) {
+                        DetailDoseHeading.REMINDER -> R.string.detail_reminder_heading
+                        DetailDoseHeading.UNCONFIRMED -> R.string.detail_pending_heading
+                        DetailDoseHeading.NEXT -> R.string.detail_next_heading
                     }), style = MaterialTheme.typography.titleMedium)
                     if (doseState != null && !doseState.stale && occurrence != null) {
                         val local = occurrence.scheduledFor.atZone(occurrence.zoneId)
@@ -263,24 +330,60 @@ internal fun MedicationDetailScreen(
                                 color = MaterialTheme.colorScheme.onSecondaryContainer)
                         }
                     }
-                    if (actionable) {
+                    if (presentation is DetailDosePresentation.Actionable) {
+                        val actionableOccurrence = presentation.occurrence
+                        val early = presentation.confirmation == DoseConfirmationPhase.EARLY
+                        if (early) {
+                            val local = actionableOccurrence.scheduledFor.atZone(actionableOccurrence.zoneId)
+                            Text(
+                                stringResource(
+                                    R.string.detail_early_notice,
+                                    "${detailDateFormatter(locale).format(local)} " +
+                                        formatDetailTime(local.toLocalTime(), locale),
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
                         // Full-width actions also work at large font scales without horizontal clipping.
-                        Button(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
-                            val currentState = doseState
-                            val occurrence = currentState.occurrence ?: return@Button
-                            val requestContext = viewModel.reminderContext()
-                            viewModel.decideDose(occurrence, DoseStatus.TAKEN) { result ->
-                                applyDecision(currentState, requestContext, result)
-                            }
-                        }) { Text(stringResource(R.string.detail_take_action), textAlign = TextAlign.Center) }
-                        OutlinedButton(modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), onClick = {
-                            val currentState = doseState
-                            val occurrence = currentState.occurrence ?: return@OutlinedButton
-                            val requestContext = viewModel.reminderContext()
-                            viewModel.decideDose(occurrence, DoseStatus.SKIPPED) { result ->
-                                applyDecision(currentState, requestContext, result)
-                            }
-                        }) { Text(stringResource(R.string.detail_skip_action), textAlign = TextAlign.Center) }
+                        Button(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            colors = if (early) ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary,
+                                contentColor = MaterialTheme.colorScheme.onTertiary,
+                            ) else ButtonDefaults.buttonColors(),
+                            onClick = {
+                                val currentState = doseState ?: return@Button
+                                val occurrence = currentState.occurrence ?: return@Button
+                                val requestContext = viewModel.reminderContext()
+                                if (early) {
+                                    viewModel.requestEarlyDecision(occurrence, DoseStatus.TAKEN)
+                                } else {
+                                    viewModel.decideDose(occurrence, DoseStatus.TAKEN) { result ->
+                                        applyDecision(currentState, requestContext, result)
+                                    }
+                                }
+                            },
+                        ) { Text(stringResource(R.string.detail_take_action), textAlign = TextAlign.Center) }
+                        OutlinedButton(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                            border = if (early) BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary) else null,
+                            colors = if (early) ButtonDefaults.outlinedButtonColors(
+                                contentColor = MaterialTheme.colorScheme.tertiary,
+                            ) else ButtonDefaults.outlinedButtonColors(),
+                            onClick = {
+                                val currentState = doseState ?: return@OutlinedButton
+                                val occurrence = currentState.occurrence ?: return@OutlinedButton
+                                val requestContext = viewModel.reminderContext()
+                                if (early) {
+                                    viewModel.requestEarlyDecision(occurrence, DoseStatus.SKIPPED)
+                                } else {
+                                    viewModel.decideDose(occurrence, DoseStatus.SKIPPED) { result ->
+                                        applyDecision(currentState, requestContext, result)
+                                    }
+                                }
+                            },
+                        ) { Text(stringResource(R.string.detail_skip_action), textAlign = TextAlign.Center) }
                     }
                 }
             }
@@ -331,6 +434,49 @@ internal fun MedicationDetailScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (presentation is DetailDosePresentation.Actionable) {
+        val pending = pendingEarlyDecision?.takeIf { it.occurrence == presentation.occurrence }
+        if (pending != null) {
+            val local = pending.occurrence.scheduledFor.atZone(pending.occurrence.zoneId)
+            val scheduledText = "${detailDateFormatter(locale).format(local)} " +
+                formatDetailTime(local.toLocalTime(), locale)
+            val early = presentation.confirmation == DoseConfirmationPhase.EARLY
+            AlertDialog(
+                onDismissRequest = { viewModel.clearPendingEarlyDecision(pending) },
+                title = {
+                    Text(stringResource(when (pending.status) {
+                        DoseStatus.TAKEN -> R.string.early_confirm_taken_title
+                        DoseStatus.SKIPPED -> R.string.early_confirm_skip_title
+                    }))
+                },
+                text = { Text(stringResource(R.string.early_confirm_message, scheduledText)) },
+                confirmButton = {
+                    Button(
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (early) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.primary,
+                            contentColor = if (early) MaterialTheme.colorScheme.onTertiary
+                                else MaterialTheme.colorScheme.onPrimary,
+                        ),
+                        onClick = {
+                            val currentState = doseState ?: return@Button
+                            val requestContext = viewModel.reminderContext()
+                            viewModel.clearPendingEarlyDecision(pending)
+                            viewModel.decideDose(pending.occurrence, pending.status) { result ->
+                                applyDecision(currentState, requestContext, result)
+                            }
+                        },
+                    ) { Text(stringResource(R.string.early_confirm_action)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.clearPendingEarlyDecision(pending) }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
         }
     }
 }

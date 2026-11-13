@@ -119,6 +119,11 @@
     <string name="detail_skip_action">Skip this dose</string>
     <string name="detail_photo_description">Medication photo</string>
     <string name="detail_pending_heading">Unconfirmed dose</string>
+    <string name="detail_early_notice">Scheduled for %1$s. Confirming now records this dose before its scheduled time.</string>
+    <string name="early_confirm_taken_title">Record this dose as taken early?</string>
+    <string name="early_confirm_skip_title">Skip this dose early?</string>
+    <string name="early_confirm_message">This dose is scheduled for %1$s. Recording it now saves an early dose decision.</string>
+    <string name="early_confirm_action">Record now</string>
     <string name="reminder_silent_channel">Silent medication reminders</string>
     <string name="reminder_channel">Medication reminders</string>
     <string name="reminder_channel_description">Reminders to take scheduled medication</string>

@@ -6,7 +6,9 @@ import android.content.pm.ActivityInfo
 import android.os.Looper
 import androidx.lifecycle.ViewModelProvider
 import com.example.medicationreminder.domain.model.DoseOccurrence
+import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.ui.MedicationViewModel
+import com.example.medicationreminder.ui.PendingEarlyDecision
 import com.example.medicationreminder.ui.ReminderEntry
 import java.time.Duration
 import java.time.Instant
@@ -145,6 +147,33 @@ class MainActivityReminderEntryTest {
 
         assertNull(viewModel.reminderEntry.value)
         assertNull(viewModel.reminderOccurrence.value)
+    }
+
+    @Test
+    fun preAlarmActionCarriesTheRequestedDecisionIntoDetail() {
+        val controller = launchActivity(
+            reminderIntent(medicationId = 4, doseTimeId = 13)
+                .putExtra(MainActivity.EXTRA_REQUESTED_STATUS, DoseStatus.TAKEN.name),
+        )
+        val viewModel = viewModelOf(controller)
+        awaitOpened(viewModel, occurrence(medicationId = 4, doseTimeId = 13))
+
+        assertEquals(
+            PendingEarlyDecision(occurrence(medicationId = 4, doseTimeId = 13), DoseStatus.TAKEN),
+            viewModel.pendingEarlyDecision.value,
+        )
+    }
+
+    @Test
+    fun unknownRequestedStatusDoesNotOpenConfirmation() {
+        val controller = launchActivity(
+            reminderIntent(medicationId = 4, doseTimeId = 13)
+                .putExtra(MainActivity.EXTRA_REQUESTED_STATUS, "NOT_A_STATUS"),
+        )
+        val viewModel = viewModelOf(controller)
+        awaitOpened(viewModel, occurrence(medicationId = 4, doseTimeId = 13))
+
+        assertNull(viewModel.pendingEarlyDecision.value)
     }
 
     private fun launchActivity(intent: Intent?): ActivityController<MainActivity> {

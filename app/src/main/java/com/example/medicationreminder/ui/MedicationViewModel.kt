@@ -32,7 +32,15 @@ import kotlinx.coroutines.withContext
  * (notification content intent or alarm status-bar intent). A null occurrence means the intent
  * carried no usable occurrence identity, so Detail falls back to the next actionable dose.
  */
-data class ReminderEntry(val medicationId: Long, val occurrence: DoseOccurrence?)
+data class ReminderEntry(
+    val medicationId: Long,
+    val occurrence: DoseOccurrence?,
+    /** A PRE notification action asks Detail to confirm before recording this status. */
+    val requestedStatus: DoseStatus? = null,
+)
+
+/** A PRE reminder action waiting for explicit confirmation on the Detail screen. */
+data class PendingEarlyDecision(val occurrence: DoseOccurrence, val status: DoseStatus)
 
 class MedicationViewModel(application: Application) : AndroidViewModel(application) {
     private val container = (application as MedicationReminderApplication).container
@@ -114,6 +122,15 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
      */
     val reminderOccurrence: StateFlow<DoseOccurrence?> = _reminderOccurrence.asStateFlow()
 
+    private val _pendingEarlyDecision = MutableStateFlow<PendingEarlyDecision?>(null)
+
+    /**
+     * One-shot early confirmation request from a PRE notification action. It survives Activity
+     * recreation and is cleared by Detail on confirm, cancel, or when the occurrence is no longer
+     * actionable, so a cold re-application of the same intent cannot reopen the dialog.
+     */
+    val pendingEarlyDecision: StateFlow<PendingEarlyDecision?> = _pendingEarlyDecision.asStateFlow()
+
     private var lastDeliveredEntry: ReminderEntry? = null
 
     init {
@@ -165,6 +182,9 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     fun reminderEntryOpened(): ReminderEntry? {
         val entry = _reminderEntry.value ?: return null
         _reminderOccurrence.value = entry.occurrence
+        _pendingEarlyDecision.value = entry.requestedStatus?.let { status ->
+            entry.occurrence?.let { PendingEarlyDecision(it, status) }
+        }
         _reminderEntry.value = null
         return entry
     }
@@ -180,6 +200,16 @@ class MedicationViewModel(application: Application) : AndroidViewModel(applicati
     /** Binds Detail opened from Home to a schedule-derived occurrence again. */
     fun clearReminderOccurrence() {
         _reminderOccurrence.value = null
+        _pendingEarlyDecision.value = null
+    }
+
+    fun requestEarlyDecision(occurrence: DoseOccurrence, status: DoseStatus) {
+        _pendingEarlyDecision.value = PendingEarlyDecision(occurrence, status)
+    }
+
+    fun clearPendingEarlyDecision(expected: PendingEarlyDecision? = null) {
+        if (expected == null) _pendingEarlyDecision.value = null
+        else _pendingEarlyDecision.compareAndSet(expected, null)
     }
 
     fun setLanguage(language: AppLanguage) {

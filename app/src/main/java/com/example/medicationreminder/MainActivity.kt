@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.example.medicationreminder.domain.model.DoseOccurrence
+import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.ui.MedicationApp
 import com.example.medicationreminder.ui.MedicationViewModel
 import com.example.medicationreminder.ui.ReminderEntry
@@ -67,6 +68,9 @@ class MainActivity : ComponentActivity() {
                     scheduledForEpochMillis = intent.getLongExtra(EXTRA_SCHEDULED_FOR, -1),
                     zoneIdValue = intent.getStringExtra(EXTRA_ZONE_ID),
                 ),
+                requestedStatus = intent.getStringExtra(EXTRA_REQUESTED_STATUS)?.let { value ->
+                    runCatching { DoseStatus.valueOf(value) }.getOrNull()
+                },
             ),
             reapplied = reapplied,
             legacy = !intent.getBooleanExtra(com.example.medicationreminder.reminders.ReminderNotifications.EXTRA_MODERN_NOTIFICATION, false),
@@ -78,5 +82,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_DOSE_TIME_ID = "open_dose_time_id"
         const val EXTRA_SCHEDULED_FOR = "open_scheduled_for"
         const val EXTRA_ZONE_ID = "open_zone_id"
+        const val EXTRA_REQUESTED_STATUS = "open_requested_status"
     }
 }

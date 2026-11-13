@@ -72,8 +72,11 @@ class ReminderNotifications(private val context: Context) {
                 .putExtra(MainActivity.EXTRA_ZONE_ID, occurrence.zoneId.id),
             PendingIntent.FLAG_UPDATE_CURRENT or ReminderScheduler.immutableFlag(),
         )
-        val takenIntent = doseActionIntent(occurrence, DoseStatus.TAKEN)
-        val skippedIntent = doseActionIntent(occurrence, DoseStatus.SKIPPED)
+        // A PRE action opens Detail for confirmation; only a DUE action records immediately.
+        val takenIntent = if (stage == ReminderStage.PRE) earlyDecisionIntent(occurrence, DoseStatus.TAKEN)
+            else doseActionIntent(occurrence, DoseStatus.TAKEN)
+        val skippedIntent = if (stage == ReminderStage.PRE) earlyDecisionIntent(occurrence, DoseStatus.SKIPPED)
+            else doseActionIntent(occurrence, DoseStatus.SKIPPED)
         val reminder = NotificationCompat.Builder(context, if (soundEnabled) REMINDER_CHANNEL else SILENT_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
@@ -148,6 +151,22 @@ class ReminderNotifications(private val context: Context) {
             .putExtra(ReminderActionReceiver.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
             .putExtra(ReminderActionReceiver.EXTRA_ZONE_ID, occurrence.zoneId.id)
             .putExtra(ReminderActionReceiver.EXTRA_STATUS, status.name),
+        PendingIntent.FLAG_UPDATE_CURRENT or ReminderScheduler.immutableFlag(),
+    )
+
+    /** PRE actions open the Detail confirmation instead of writing a decision from the receiver. */
+    private fun earlyDecisionIntent(occurrence: DoseOccurrence, status: DoseStatus): PendingIntent = PendingIntent.getActivity(
+        context,
+        ReminderScheduler.requestCode(occurrence.doseTimeId, if (status == DoseStatus.TAKEN) 8 else 9),
+        Intent(context, MainActivity::class.java)
+            .setAction("EARLY_RECORD.${status.name}.${occurrenceTag(occurrence)}")
+            .setData(Uri.parse("meds://early-confirm/${occurrence.doseTimeId}/${occurrence.scheduledFor.toEpochMilli()}/${status.name}"))
+            .putExtra(EXTRA_MODERN_NOTIFICATION, true)
+            .putExtra(MainActivity.EXTRA_MEDICATION_ID, occurrence.medicationId)
+            .putExtra(MainActivity.EXTRA_DOSE_TIME_ID, occurrence.doseTimeId)
+            .putExtra(MainActivity.EXTRA_SCHEDULED_FOR, occurrence.scheduledFor.toEpochMilli())
+            .putExtra(MainActivity.EXTRA_ZONE_ID, occurrence.zoneId.id)
+            .putExtra(MainActivity.EXTRA_REQUESTED_STATUS, status.name),
         PendingIntent.FLAG_UPDATE_CURRENT or ReminderScheduler.immutableFlag(),
     )
 

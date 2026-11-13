@@ -119,6 +119,11 @@
     <string name="detail_skip_action">跳过本次</string>
     <string name="detail_photo_description">药物照片</string>
     <string name="detail_pending_heading">待确认服药</string>
+    <string name="detail_early_notice">计划时间 %1$s，现在确认将记为提前服药。</string>
+    <string name="early_confirm_taken_title">提前标记为已服用？</string>
+    <string name="early_confirm_skip_title">提前跳过本次服药？</string>
+    <string name="early_confirm_message">本次服药计划时间为 %1$s。现在记录会按提前服药保存。</string>
+    <string name="early_confirm_action">仍然记录</string>
     <string name="reminder_silent_channel">静音服药提醒</string>
     <string name="reminder_channel">用药提醒</string>
     <string name="reminder_channel_description">按计划提醒服药</string>
