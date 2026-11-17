@@ -3,8 +3,11 @@ package com.example.medicationreminder
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.lifecycle.ViewModelProvider
+import androidx.test.core.app.ActivityScenario
+import androidx.test.platform.app.InstrumentationRegistry
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.ui.MedicationViewModel
@@ -18,10 +21,8 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 
 /**
@@ -37,7 +38,7 @@ class MainActivityReminderEntryTest {
     @get:Rule
     val composeRule = createEmptyComposeRule()
 
-    private val activities = mutableListOf<ActivityController<MainActivity>>()
+    private val activities = mutableListOf<ActivityScenario<MainActivity>>()
     private val zone = ZoneId.of("Asia/Shanghai")
     private val scheduledFor = Instant.parse("2026-09-13T13:25:00Z")
 
@@ -185,14 +186,19 @@ class MainActivityReminderEntryTest {
         assertNull(viewModel.pendingEarlyDecision.value)
     }
 
-    private fun launchActivity(intent: Intent?): ActivityController<MainActivity> {
-        val controller = if (intent == null) {
-            Robolectric.buildActivity(MainActivity::class.java)
-        } else {
-            Robolectric.buildActivity(MainActivity::class.java, intent)
-        }
-        activities += controller
-        return controller.setup().windowFocusChanged(true)
+    private fun launchActivity(intent: Intent?): ActivityScenario<MainActivity> =
+        ActivityScenario.launch<MainActivity>(
+            intent ?: Intent(RuntimeEnvironment.getApplication(), MainActivity::class.java),
+        ).also { activities += it }
+
+    private fun ActivityScenario<MainActivity>.get(): MainActivity {
+        lateinit var activity: MainActivity
+        onActivity { activity = it }
+        return activity
+    }
+
+    private fun ActivityScenario<MainActivity>.newIntent(intent: Intent) {
+        onActivity { InstrumentationRegistry.getInstrumentation().callActivityOnNewIntent(it, intent) }
     }
 
     private fun reminderIntent(medicationId: Long, doseTimeId: Long): Intent =
@@ -205,7 +211,7 @@ class MainActivityReminderEntryTest {
     private fun occurrence(medicationId: Long, doseTimeId: Long) =
         DoseOccurrence(medicationId, doseTimeId, scheduledFor, zone)
 
-    private fun viewModelOf(controller: ActivityController<MainActivity>): MedicationViewModel =
+    private fun viewModelOf(controller: ActivityScenario<MainActivity>): MedicationViewModel =
         ViewModelProvider(controller.get())[MedicationViewModel::class.java]
 
     private fun viewModel(): MedicationViewModel =
@@ -213,8 +219,17 @@ class MainActivityReminderEntryTest {
 
     /** Synchronize Compose frames while allowing asynchronous preference reads to finish. */
     private fun awaitOpened(viewModel: MedicationViewModel, expected: DoseOccurrence) {
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null
+        try {
+            composeRule.waitUntil(timeoutMillis = 10_000) {
+                viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null
+            }
+        } catch (error: ComposeTimeoutException) {
+            throw AssertionError(
+                "Reminder navigation timed out: language=${viewModel.language.value}; " +
+                    "pending=${viewModel.reminderEntry.value}; bound=${viewModel.reminderOccurrence.value}; " +
+                    "lifecycle=${activities.map { it.state }}",
+                error,
+            )
         }
         assertEquals(expected, viewModel.reminderOccurrence.value)
         assertNull(viewModel.reminderEntry.value)
