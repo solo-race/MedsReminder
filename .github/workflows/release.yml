@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      restore_bridge:
+        description: "Build a temporary debuggable beta.10 APK signed for data restoration"
+        type: boolean
+        default: false
   push:
     tags: ["v*"]
 
@@ -13,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.restore_bridge && 'v1.0.0-beta.10' || github.ref }}
 
       - uses: actions/setup-java@v5
         with:
@@ -44,6 +51,28 @@ jobs:
 
       - name: Lint and build release APK
         run: ./gradlew lintRelease assembleRelease --no-daemon
+
+      - name: Build temporary data restoration bridge
+        if: github.event_name == 'workflow_dispatch' && inputs.restore_bridge
+        run: |
+          cat > "$RUNNER_TEMP/restore-bridge.init.gradle" <<'EOF'
+          allprojects {
+              plugins.withId('com.android.application') {
+                  androidComponents.finalizeDsl { android ->
+                      android.buildTypes.getByName('release').debuggable = true
+                  }
+              }
+          }
+          EOF
+          ./gradlew assembleRelease --no-daemon --init-script "$RUNNER_TEMP/restore-bridge.init.gradle"
+
+      - name: Upload temporary data restoration bridge
+        if: github.event_name == 'workflow_dispatch' && inputs.restore_bridge
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-data-restore-bridge
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 1
 
       - name: Upload failing test reports
         if: failure()
