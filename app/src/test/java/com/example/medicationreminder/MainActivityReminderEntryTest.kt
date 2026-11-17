@@ -13,6 +13,7 @@ import com.example.medicationreminder.ui.ReminderEntry
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -201,14 +202,18 @@ class MainActivityReminderEntryTest {
     private fun viewModel(): MedicationViewModel =
         MedicationViewModel(RuntimeEnvironment.getApplication())
 
-    /** Wait for the observable navigation effect, not an assumed fixed four-frame startup budget. */
+    /** Allow background preference reads to finish as well as advancing Compose's frame clock. */
     private fun awaitOpened(viewModel: MedicationViewModel, expected: DoseOccurrence) {
         val looper = shadowOf(Looper.getMainLooper())
-        repeat(120) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (System.nanoTime() < deadline) {
             looper.idleFor(Duration.ofMillis(16))
             if (viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null) return
+            Thread.sleep(10)
         }
-        // The calling assertions retain the real expected result and give the pending-entry diagnostic.
+        assertEquals("Timed out opening reminder; pending=${viewModel.reminderEntry.value}",
+            expected, viewModel.reminderOccurrence.value)
+        assertNull(viewModel.reminderEntry.value)
     }
 
     /** Lets pending recommendations and the Compose frame-driven effect run to completion. */

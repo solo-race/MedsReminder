@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - "codex/**"
+      - "feat/**"
   pull_request:
     branches: [master]
 
@@ -27,3 +28,12 @@ jobs:
 
       - name: Run unit tests, lint, and debug build
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
+
+      - name: Upload failing test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
