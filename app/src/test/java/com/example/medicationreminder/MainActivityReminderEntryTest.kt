@@ -221,6 +221,8 @@ class MainActivityReminderEntryTest {
     private fun awaitOpened(viewModel: MedicationViewModel, expected: DoseOccurrence) {
         try {
             composeRule.waitUntil(timeoutMillis = 10_000) {
+                // waitUntil advances Compose's clock, but Robolectric's Android looper is paused.
+                composeRule.waitForIdle()
                 viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null
             }
         } catch (error: ComposeTimeoutException) {
