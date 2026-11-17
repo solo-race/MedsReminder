@@ -3,25 +3,24 @@ package com.example.medicationreminder
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
-import android.os.Looper
+import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.lifecycle.ViewModelProvider
 import com.example.medicationreminder.domain.model.DoseOccurrence
 import com.example.medicationreminder.domain.model.DoseStatus
 import com.example.medicationreminder.ui.MedicationViewModel
 import com.example.medicationreminder.ui.PendingEarlyDecision
 import com.example.medicationreminder.ui.ReminderEntry
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
-import java.util.concurrent.TimeUnit
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.android.controller.ActivityController
 import org.robolectric.annotation.Config
 
@@ -35,8 +34,17 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class MainActivityReminderEntryTest {
+    @get:Rule
+    val composeRule = createEmptyComposeRule()
+
+    private val activities = mutableListOf<ActivityController<MainActivity>>()
     private val zone = ZoneId.of("Asia/Shanghai")
     private val scheduledFor = Instant.parse("2026-09-13T13:25:00Z")
+
+    @After
+    fun closeActivities() {
+        activities.asReversed().forEach { it.close() }
+    }
 
     @Test
     fun coldLaunchBindsTheReminderOccurrence() {
@@ -183,7 +191,8 @@ class MainActivityReminderEntryTest {
         } else {
             Robolectric.buildActivity(MainActivity::class.java, intent)
         }
-        return controller.setup()
+        activities += controller
+        return controller.setup().windowFocusChanged(true)
     }
 
     private fun reminderIntent(medicationId: Long, doseTimeId: Long): Intent =
@@ -202,23 +211,17 @@ class MainActivityReminderEntryTest {
     private fun viewModel(): MedicationViewModel =
         MedicationViewModel(RuntimeEnvironment.getApplication())
 
-    /** Allow background preference reads to finish as well as advancing Compose's frame clock. */
+    /** Synchronize Compose frames while allowing asynchronous preference reads to finish. */
     private fun awaitOpened(viewModel: MedicationViewModel, expected: DoseOccurrence) {
-        val looper = shadowOf(Looper.getMainLooper())
-        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
-        while (System.nanoTime() < deadline) {
-            looper.idleFor(Duration.ofMillis(16))
-            if (viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null) return
-            Thread.sleep(10)
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            viewModel.reminderOccurrence.value == expected && viewModel.reminderEntry.value == null
         }
-        assertEquals("Timed out opening reminder; pending=${viewModel.reminderEntry.value}",
-            expected, viewModel.reminderOccurrence.value)
+        assertEquals(expected, viewModel.reminderOccurrence.value)
         assertNull(viewModel.reminderEntry.value)
     }
 
     /** Lets pending recommendations and the Compose frame-driven effect run to completion. */
     private fun idleFrames() {
-        val looper = shadowOf(Looper.getMainLooper())
-        repeat(4) { looper.idleFor(Duration.ofMillis(16)) }
+        composeRule.waitForIdle()
     }
 }
