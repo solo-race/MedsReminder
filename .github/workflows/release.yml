@@ -38,8 +38,8 @@ jobs:
           printf 'storeFile=release.keystore\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
             "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
 
-      - name: Build release APK
-        run: ./gradlew assembleRelease --no-daemon
+      - name: Test, lint, and build release APK
+        run: ./gradlew testDebugUnitTest lintRelease assembleRelease --no-daemon
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
